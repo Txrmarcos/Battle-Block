@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useBlockBattle } from "@/lib/useBlockBattle";
@@ -34,7 +34,7 @@ export default function ManageBet() {
   const [winningBlock, setWinningBlock] = useState<number | null>(null);
 
   // Find all pools created by the connected user
-  const findMyPools = async () => {
+  const findMyPools = useCallback(async () => {
     if (!publicKey) return;
 
     console.log("🔍 Searching for pools created by:", publicKey.toBase58());
@@ -120,43 +120,92 @@ export default function ManageBet() {
     } finally {
       setSearchingPools(false);
     }
-  };
+  }, [publicKey, connection]);
 
   // Find all pools where user participated as a player
-  const findJoinedPools = async () => {
+  const findJoinedPools = useCallback(async () => {
     if (!publicKey) return;
 
     console.log("🔍 Searching for pools where you participated...");
     setSearchingPools(true);
 
     try {
-      // Get all bet accounts
+      // Get all bet accounts with player data filter
       const accounts = await connection.getProgramAccounts(PROGRAM_ID);
       console.log(`📦 Found ${accounts.length} total pools`);
 
       const joined: PoolInfo[] = [];
 
-      for (const account of accounts) {
+      // Limit processing to avoid browser freeze
+      const MAX_ACCOUNTS = 50;
+      const accountsToProcess = accounts.slice(0, MAX_ACCOUNTS);
+
+      for (const account of accountsToProcess) {
         try {
-          const betData = await getBetData(account.pubkey);
+          const data = account.account.data;
+          let offset = 8;
+
+          // Skip creator
+          offset += 32;
+          // Skip arbiter
+          offset += 32;
+
+          const minDeposit = Number(data.readBigUInt64LE(offset));
+          offset += 8;
+
+          const totalPool = Number(data.readBigUInt64LE(offset));
+          offset += 8;
+
+          const lockTime = Number(data.readBigInt64LE(offset));
+          offset += 8;
+
+          // winner_block is Option<u8>
+          const hasWinnerBlock = data.readUInt8(offset);
+          offset += 1;
+          let winnerBlock: number | undefined;
+          if (hasWinnerBlock) {
+            winnerBlock = data.readUInt8(offset);
+            offset += 1;
+          }
+
+          const status = data.readUInt8(offset);
+          offset += 1;
+
+          const playerCount = data.readUInt8(offset);
+          offset += 1;
+
+          if (playerCount === 0) continue;
+
+          // Read players array
+          const players: string[] = [];
+          for (let i = 0; i < playerCount && i < 25; i++) {
+            const playerPubkey = new PublicKey(data.slice(offset, offset + 32));
+            players.push(playerPubkey.toBase58());
+            offset += 32;
+          }
 
           // Check if user is in players array
-          const playerIndex = betData.players.findIndex(
-            (player: PublicKey) => player.toBase58() === publicKey.toBase58()
-          );
+          const playerIndex = players.findIndex(p => p === publicKey.toBase58());
 
           if (playerIndex !== -1) {
-            // User is a player in this pool
-            const myBlock = betData.chosenBlocks[playerIndex];
-            const status = Object.keys(betData.status)[0];
+            // Read chosen blocks
+            offset = 8 + 32 + 32 + 8 + 8 + 8 + (hasWinnerBlock ? 2 : 1) + 1 + 1 + (32 * 25);
+            const chosenBlocks: number[] = [];
+            for (let i = 0; i < 25; i++) {
+              chosenBlocks.push(data.readUInt8(offset));
+              offset += 1;
+            }
+
+            const myBlock = chosenBlocks[playerIndex];
+            const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
 
             joined.push({
               address: account.pubkey.toBase58(),
-              totalPool: betData.totalPool.toNumber() / 1e9,
-              playerCount: betData.playerCount,
-              status,
-              lockTime: betData.lockTime.toNumber(),
-              winnerBlock: betData.winnerBlock,
+              totalPool: totalPool / 1e9,
+              playerCount,
+              status: statusStr,
+              lockTime: Number(lockTime),
+              winnerBlock,
               myChosenBlock: myBlock,
             });
 
@@ -182,7 +231,7 @@ export default function ManageBet() {
     } finally {
       setSearchingPools(false);
     }
-  };
+  }, [publicKey, connection]);
 
   // Load detailed data for selected pool
   const loadPoolDetails = async (address: string) => {
@@ -234,9 +283,9 @@ export default function ManageBet() {
     }
   };
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     await Promise.all([findMyPools(), findJoinedPools()]);
-  };
+  }, [findMyPools, findJoinedPools]);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -247,7 +296,7 @@ export default function ManageBet() {
       setSelectedPool(null);
       setPoolDetails(null);
     }
-  }, [connected, publicKey]);
+  }, [connected, publicKey, refreshAll]);
 
   if (!connected) {
     return (
