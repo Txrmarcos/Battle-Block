@@ -6,10 +6,13 @@ import { useBlockBattle } from "@/lib/useBlockBattle";
 import { useWallet } from "@solana/wallet-adapter-react";
 import toast from "react-hot-toast";
 
+type GameMode = "automatic" | "arbiter";
+
 export default function CreateBet() {
   const { connected, publicKey } = useWallet();
   const { createBet } = useBlockBattle();
   const [loading, setLoading] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>("automatic");
   const [formData, setFormData] = useState({
     minDeposit: "0.1",
     arbiter: "",
@@ -21,11 +24,25 @@ export default function CreateBet() {
     setLoading(true);
 
     try {
-      const arbiterPubkey = new PublicKey(formData.arbiter);
+      const isAutomatic = gameMode === "automatic";
+
+      // For automatic mode, use a placeholder arbiter address (system program)
+      // For arbiter mode, use the provided address
+      const arbiterPubkey = isAutomatic
+        ? PublicKey.default // System program as placeholder
+        : new PublicKey(formData.arbiter);
+
+      // For arbiter mode, locktime is not used, so we use current time + 1 year as dummy
+      // For automatic mode, use the configured locktime
+      const lockTimeSeconds = isAutomatic
+        ? parseInt(formData.lockTime)
+        : 31536000; // 1 year (not used for arbiter mode)
+
       const result = await createBet(
         parseFloat(formData.minDeposit),
         arbiterPubkey,
-        parseInt(formData.lockTime)
+        lockTimeSeconds,
+        isAutomatic
       );
 
       if (result) {
@@ -81,6 +98,41 @@ export default function CreateBet() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Game Mode Selection */}
+          <div>
+            <label className="block text-sm pixel-font text-purple-300 mb-3 text-center">
+              🎮 GAME MODE
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setGameMode("automatic")}
+                className={`p-4 rounded-xl pixel-font text-sm transition-all border-2 ${
+                  gameMode === "automatic"
+                    ? "bg-gradient-to-r from-purple-500 to-cyan-500 text-white border-purple-400 shadow-lg shadow-purple-500/50"
+                    : "bg-black/50 text-purple-300 border-purple-500/30 hover:border-purple-500"
+                }`}
+              >
+                <div className="text-3xl mb-2">⚡</div>
+                <div className="font-bold mb-1">AUTOMATIC</div>
+                <div className="text-[10px] opacity-80">Random reveal after time</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGameMode("arbiter")}
+                className={`p-4 rounded-xl pixel-font text-sm transition-all border-2 ${
+                  gameMode === "arbiter"
+                    ? "bg-gradient-to-r from-purple-500 to-cyan-500 text-white border-purple-400 shadow-lg shadow-purple-500/50"
+                    : "bg-black/50 text-purple-300 border-purple-500/30 hover:border-purple-500"
+                }`}
+              >
+                <div className="text-3xl mb-2">👑</div>
+                <div className="font-bold mb-1">ARBITER</div>
+                <div className="text-[10px] opacity-80">Manual reveal by judge</div>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm pixel-font text-purple-300 mb-2">
               💰 ENTRY FEE (SOL)
@@ -97,25 +149,28 @@ export default function CreateBet() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm pixel-font text-purple-300 mb-2">
-              👑 ARBITER ADDRESS
-            </label>
-            <input
-              type="text"
-              value={formData.arbiter}
-              onChange={(e) => setFormData({ ...formData, arbiter: e.target.value })}
-              className="w-full px-4 py-3 bg-black/50 border-2 border-purple-500/50 rounded-xl text-white placeholder-purple-300/40 focus:outline-none focus:border-purple-500 transition-all font-mono text-sm"
-              placeholder="Public key of the arbiter"
-              required
-            />
-            <p className="text-xs pixel-font text-cyan-300 mt-2">⚡ Who reveals the treasure location</p>
-          </div>
+          {gameMode === "arbiter" && (
+            <div>
+              <label className="block text-sm pixel-font text-purple-300 mb-2">
+                👑 ARBITER ADDRESS
+              </label>
+              <input
+                type="text"
+                value={formData.arbiter}
+                onChange={(e) => setFormData({ ...formData, arbiter: e.target.value })}
+                className="w-full px-4 py-3 bg-black/50 border-2 border-purple-500/50 rounded-xl text-white placeholder-purple-300/40 focus:outline-none focus:border-purple-500 transition-all font-mono text-sm"
+                placeholder="Public key of the arbiter"
+                required
+              />
+              <p className="text-xs pixel-font text-cyan-300 mt-2">⚡ Arbiter reveals the treasure at any time</p>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm pixel-font text-purple-300 mb-2">
-              ⏰ LOCK TIME
-            </label>
+          {gameMode === "automatic" && (
+            <div>
+              <label className="block text-sm pixel-font text-purple-300 mb-2">
+                ⏰ AUTO-REVEAL TIME
+              </label>
             <div className="grid grid-cols-4 gap-2 mb-3">
               {[
                 { label: "1MIN", value: "60" },
@@ -137,15 +192,16 @@ export default function CreateBet() {
                 </button>
               ))}
             </div>
-            <input
-              type="number"
-              min="60"
-              value={formData.lockTime}
-              onChange={(e) => setFormData({ ...formData, lockTime: e.target.value })}
-              className="w-full px-4 py-3 bg-black/50 border-2 border-purple-500/50 rounded-xl text-white placeholder-purple-300/40 focus:outline-none focus:border-purple-500 transition-all pixel-font"
-              required
-            />
-          </div>
+              <input
+                type="number"
+                min="60"
+                value={formData.lockTime}
+                onChange={(e) => setFormData({ ...formData, lockTime: e.target.value })}
+                className="w-full px-4 py-3 bg-black/50 border-2 border-purple-500/50 rounded-xl text-white placeholder-purple-300/40 focus:outline-none focus:border-purple-500 transition-all pixel-font"
+                required
+              />
+            </div>
+          )}
 
           <button
             type="submit"
@@ -157,9 +213,18 @@ export default function CreateBet() {
         </form>
 
         <div className="mt-6 p-4 bg-purple-500/10 border-2 border-purple-500/30 rounded-xl">
-          <p className="text-xs pixel-font text-purple-300 text-center">
+          <p className="text-xs pixel-font text-purple-300 text-center mb-2">
             ✨ CREATE MULTIPLE DUNGEONS • MANAGE IN 👑 TAB
           </p>
+          {gameMode === "automatic" ? (
+            <p className="text-xs pixel-font text-cyan-400 text-center">
+              ⚡ Winner auto-reveals after time • No arbiter needed
+            </p>
+          ) : (
+            <p className="text-xs pixel-font text-yellow-400 text-center">
+              👑 Arbiter reveals winner at any time • No time limit
+            </p>
+          )}
         </div>
       </div>
     </div>

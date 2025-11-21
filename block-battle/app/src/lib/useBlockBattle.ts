@@ -11,7 +11,8 @@ export function useBlockBattle() {
   const createBet = async (
     minDepositSol: number,
     arbiter: PublicKey,
-    lockTimeSeconds: number
+    lockTimeSeconds: number,
+    isAutomatic: boolean
   ) => {
     if (!wallet) {
       toast.error("Please connect your wallet");
@@ -29,7 +30,7 @@ export function useBlockBattle() {
       const minDeposit = new BN(minDepositSol * LAMPORTS_PER_SOL);
 
       const tx = await program.methods
-        .createBet(new BN(seed.toString()), minDeposit, arbiter, new BN(lockTime))
+        .createBet(new BN(seed.toString()), minDeposit, arbiter, new BN(lockTime), isAutomatic)
         .accounts({
           bet: betPDA,
           creator: wallet.publicKey,
@@ -119,6 +120,32 @@ export function useBlockBattle() {
     }
   };
 
+  const autoRevealWinner = async (betPDA: PublicKey) => {
+    if (!wallet) {
+      toast.error("Please connect your wallet");
+      return;
+    }
+
+    try {
+      const program = await getProgram(connection, wallet);
+
+      const tx = await program.methods
+        .autoRevealWinner()
+        .accounts({
+          bet: betPDA,
+          caller: wallet.publicKey,
+        })
+        .rpc();
+
+      toast.success("Winner auto-revealed!");
+      return tx;
+    } catch (error: any) {
+      console.error("Error auto-revealing winner:", error);
+      toast.error(error.message || "Failed to auto-reveal winner");
+      throw error;
+    }
+  };
+
   const claimWinnings = async (betPDA: PublicKey) => {
     if (!wallet) {
       toast.error("Please connect your wallet");
@@ -188,6 +215,7 @@ export function useBlockBattle() {
     createBet,
     joinBet,
     revealWinner,
+    autoRevealWinner,
     claimWinnings,
     cancelBet,
     getBetData,

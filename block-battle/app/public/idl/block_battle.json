@@ -132,6 +132,10 @@
         {
           "name": "lock_time",
           "type": "i64"
+        },
+        {
+          "name": "is_automatic",
+          "type": "bool"
         }
       ]
     },
@@ -179,7 +183,7 @@
     {
       "name": "reveal_winner",
       "docs": [
-        "Arbiter reveals the winning block"
+        "Arbiter reveals the winning block (only for non-automatic bets)"
       ],
       "discriminator": [
         234,
@@ -207,6 +211,33 @@
           "type": "u8"
         }
       ]
+    },
+    {
+      "name": "auto_reveal_winner",
+      "docs": [
+        "Auto-reveal winner for automatic bets (anyone can call after lock time)"
+      ],
+      "discriminator": [
+        104,
+        175,
+        215,
+        55,
+        12,
+        87,
+        202,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "bet",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -309,6 +340,16 @@
       "code": 6016,
       "name": "BetAlreadyLocked",
       "msg": "Bet already locked"
+    },
+    {
+      "code": 6017,
+      "name": "AutomaticBetCannotManualReveal",
+      "msg": "Automatic bet cannot be manually revealed"
+    },
+    {
+      "code": 6018,
+      "name": "NotAutomaticBet",
+      "msg": "Not an automatic bet"
     }
   ],
   "types": [
@@ -358,6 +399,10 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "is_automatic",
+            "type": "bool"
           },
           {
             "name": "players",

@@ -275,16 +275,38 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
   }
 
   const status = poolData ? Object.keys(poolData.status)[0] : "open";
+  const isAutomatic = poolData?.isAutomatic ?? false;
+  const poolTotal = poolData ? poolData.totalPool.toNumber() / 1e9 : activePool.totalPool;
+  const minDeposit = poolData ? poolData.minDeposit.toNumber() / 1e9 : activePool.minDeposit;
+  const playerCount = poolData ? poolData.playerCount : activePool.playerCount;
 
   return (
     <div className="space-y-6">
+      {/* Dungeon Header */}
+      <div className="bg-gradient-to-br from-[#0f0f1e] to-[#1a1a2e] border-4 border-purple-500/30 rounded-2xl p-8 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-5"></div>
+        <div className="relative z-10">
+          <div className="text-5xl mb-3">{isAutomatic ? "⚡" : "👑"}</div>
+          <h2 className="text-3xl pixel-font text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2"
+              style={{ textShadow: "3px 3px 0px #000" }}>
+            {isAutomatic ? "AUTOMATIC DUNGEON" : "ARBITER DUNGEON"}
+          </h2>
+          <p className="text-sm pixel-font text-cyan-300">
+            {isAutomatic ? "⚡ Winner reveals automatically" : "👑 Arbiter reveals the winner"}
+          </p>
+          <div className="mt-4 text-xs pixel-font text-purple-300 font-mono">
+            {activePool.address.slice(0, 12)}...{activePool.address.slice(-12)}
+          </div>
+        </div>
+      </div>
+
       {/* Pool Stats */}
-      <div className="bg-white/[0.02] border border-purple-500/30 rounded-2xl p-6">
+      <div className="bg-gradient-to-br from-purple-900/20 to-cyan-900/20 border-2 border-purple-500/30 rounded-2xl p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatBox icon="💰" label="POOL" value={`${activePool.totalPool.toFixed(3)} SOL`} />
-          <StatBox icon="👥" label="PLAYERS" value={`${activePool.playerCount}/100`} />
-          <StatBox icon="⚔️" label="ENTRY" value={`${activePool.minDeposit.toFixed(3)} SOL`} />
-          <StatBox icon={status === "open" ? "🟢" : "🏆"} label="STATUS" value={status.toUpperCase()} />
+          <StatBox icon="💰" label="POOL" value={`${poolTotal.toFixed(3)} SOL`} />
+          <StatBox icon="👥" label="PLAYERS" value={`${playerCount}/100`} />
+          <StatBox icon="🎫" label="MIN ENTRY" value={`${minDeposit.toFixed(3)} SOL`} />
+          <StatBox icon={status === "open" ? "🟢" : status === "revealed" ? "🏆" : "🔴"} label="STATUS" value={status.toUpperCase()} />
         </div>
       </div>
 
@@ -370,9 +392,9 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
 
 function StatBox({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="bg-gradient-to-br from-purple-600/20 to-cyan-600/20 border-2 border-purple-500/30 rounded-xl p-3 text-center">
+    <div className="bg-black/30 rounded-lg p-3 border border-purple-500/20 text-center">
       <div className="text-2xl mb-1">{icon}</div>
-      <p className="text-[10px] pixel-font text-gray-400 mb-0.5">{label}</p>
+      <p className="text-[10px] pixel-font text-purple-300 mb-0.5">{label}</p>
       <p className="text-sm pixel-font text-white font-bold truncate">{value}</p>
     </div>
   );

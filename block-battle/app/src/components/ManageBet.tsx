@@ -17,12 +17,14 @@ interface PoolInfo {
   lockTime: number;
   winnerBlock?: number;
   myChosenBlock?: number;
+  hasClaimed?: boolean;
+  isAutomatic?: boolean;
 }
 
 export default function ManageBet() {
   const { connection } = useConnection();
   const { connected, publicKey } = useWallet();
-  const { revealWinner, cancelBet, getBetData, claimWinnings } = useBlockBattle();
+  const { revealWinner, autoRevealWinner, cancelBet, getBetData, claimWinnings } = useBlockBattle();
 
   const [loading, setLoading] = useState(false);
   const [searchingPools, setSearchingPools] = useState(false);
@@ -88,6 +90,12 @@ export default function ManageBet() {
           offset += 1;
 
           const playerCount = data.readUInt8(offset);
+          offset += 1;
+
+          // Skip bump
+          offset += 1;
+
+          const isAutomatic = data.readUInt8(offset) === 1;
 
           const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
 
@@ -98,6 +106,7 @@ export default function ManageBet() {
             status: statusStr,
             lockTime,
             winnerBlock,
+            isAutomatic,
           });
         } catch (err) {
           console.error("Error parsing pool:", err);
@@ -148,6 +157,7 @@ export default function ManageBet() {
             // User is a player in this pool
             const myBlock = betData.chosenBlocks[playerIndex];
             const status = Object.keys(betData.status)[0];
+            const hasClaimed = betData.claimed[playerIndex];
 
             joined.push({
               address: account.pubkey.toBase58(),
@@ -157,9 +167,10 @@ export default function ManageBet() {
               lockTime: betData.lockTime.toNumber(),
               winnerBlock: betData.winnerBlock,
               myChosenBlock: myBlock,
+              hasClaimed,
             });
 
-            console.log(`✅ Found pool ${account.pubkey.toBase58().slice(0, 8)}... - You chose block ${myBlock}`);
+            console.log(`✅ Found pool ${account.pubkey.toBase58().slice(0, 8)}... - You chose block ${myBlock} - Claimed: ${hasClaimed}`);
           }
         } catch (err) {
           console.error("Error parsing joined pool:", err);
@@ -209,6 +220,22 @@ export default function ManageBet() {
       await loadPoolDetails(selectedPool);
       await findMyPools(); // Refresh list
       setWinningBlock(null);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAutoReveal = async () => {
+    if (!selectedPool) return;
+
+    setLoading(true);
+    try {
+      const betPDA = new PublicKey(selectedPool);
+      await autoRevealWinner(betPDA);
+      await loadPoolDetails(selectedPool);
+      await findMyPools(); // Refresh list
     } catch (error) {
       console.error(error);
     } finally {
@@ -457,25 +484,31 @@ export default function ManageBet() {
                       </div>
 
                       {didWin && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              setLoading(true);
-                              const betPDA = new PublicKey(pool.address);
-                              await claimWinnings(betPDA);
-                              await refreshAll();
-                              toast.success("Treasure claimed! 🎉");
-                            } catch (error) {
-                              console.error(error);
-                            } finally {
-                              setLoading(false);
-                            }
-                          }}
-                          disabled={loading}
-                          className="w-full mt-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white pixel-font text-sm py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border-4 border-green-400"
-                        >
-                          {loading ? "CLAIMING..." : "💰 CLAIM TREASURE 💰"}
-                        </button>
+                        pool.hasClaimed ? (
+                          <div className="w-full mt-4 bg-gradient-to-r from-gray-600 to-gray-700 text-gray-300 pixel-font text-sm py-3 px-6 rounded-xl shadow-lg border-4 border-gray-500 text-center">
+                            ✅ TREASURE CLAIMED
+                          </div>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              try {
+                                setLoading(true);
+                                const betPDA = new PublicKey(pool.address);
+                                await claimWinnings(betPDA);
+                                await refreshAll();
+                                toast.success("Treasure claimed! 🎉");
+                              } catch (error) {
+                                console.error(error);
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                            className="w-full mt-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white pixel-font text-sm py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border-4 border-green-400"
+                          >
+                            {loading ? "CLAIMING..." : "💰 CLAIM TREASURE 💰"}
+                          </button>
+                        )
                       )}
 
                       <div className="mt-3 pt-3 border-t border-cyan-500/30">
@@ -540,7 +573,7 @@ export default function ManageBet() {
             </div>
 
             {/* Arbiter: Reveal Winner */}
-            {isArbiter && status === 'open' && (
+            {isArbiter && status === 'open' && !poolDetails.isAutomatic && (
               <div className="space-y-4">
                 <div className="bg-green-500/20 border-2 border-green-500 rounded-xl p-4 mb-4 text-center">
                   <span className="text-2xl">👑</span>
@@ -575,6 +608,46 @@ export default function ManageBet() {
                 </button>
                 {poolDetails.playerCount < 2 && (
                   <p className="text-sm pixel-font text-red-400 text-center animate-pulse">⚠️ NEED 2+ PLAYERS TO REVEAL</p>
+                )}
+              </div>
+            )}
+
+            {/* Automatic: Auto Reveal */}
+            {status === 'open' && poolDetails.isAutomatic && (
+              <div className="space-y-4">
+                <div className="bg-cyan-500/20 border-2 border-cyan-500 rounded-xl p-4 mb-4 text-center">
+                  <span className="text-2xl">⚡</span>
+                  <p className="text-cyan-300 pixel-font text-sm mt-2">AUTOMATIC MODE</p>
+                  <p className="text-cyan-400 pixel-font text-xs mt-1">
+                    {Math.floor(Date.now() / 1000) >= poolDetails.lockTime.toNumber()
+                      ? "READY TO AUTO-REVEAL!"
+                      : `Auto-reveals at ${new Date(poolDetails.lockTime.toNumber() * 1000).toLocaleString()}`}
+                  </p>
+                </div>
+
+                {Math.floor(Date.now() / 1000) >= poolDetails.lockTime.toNumber() ? (
+                  <>
+                    <button
+                      onClick={handleAutoReveal}
+                      disabled={loading || poolDetails.playerCount < 2}
+                      className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white pixel-font text-lg py-4 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg border-4 border-cyan-400"
+                    >
+                      {loading ? "REVEALING..." : "⚡ AUTO-REVEAL WINNER ⚡"}
+                    </button>
+                    {poolDetails.playerCount < 2 && (
+                      <p className="text-sm pixel-font text-red-400 text-center animate-pulse">⚠️ NEED 2+ PLAYERS TO REVEAL</p>
+                    )}
+                    <p className="text-xs pixel-font text-cyan-300 text-center">
+                      Anyone can trigger auto-reveal after lock time
+                    </p>
+                  </>
+                ) : (
+                  <div className="bg-black/30 rounded-xl p-4 border border-cyan-500/30 text-center">
+                    <p className="text-cyan-300 pixel-font text-sm">⏰ Waiting for lock time...</p>
+                    <p className="text-white pixel-font text-xl mt-2">
+                      {new Date(poolDetails.lockTime.toNumber() * 1000).toLocaleTimeString()}
+                    </p>
+                  </div>
                 )}
               </div>
             )}

@@ -13,6 +13,7 @@ interface OpenBet {
   totalPool: number;
   playerCount: number;
   lockTime: number;
+  isAutomatic: boolean;
 }
 
 export default function OpenBets() {
@@ -75,6 +76,13 @@ export default function OpenBets() {
 
           // Read player_count (1 byte)
           const playerCount = data.readUInt8(offset);
+          offset += 1;
+
+          // Skip bump (1 byte)
+          offset += 1;
+
+          // Read is_automatic (1 byte)
+          const isAutomatic = data.readUInt8(offset) === 1;
 
           // Only show open bets (status = 0)
           if (status === 0) {
@@ -85,6 +93,7 @@ export default function OpenBets() {
               totalPool: totalPool / 1e9,
               playerCount,
               lockTime,
+              isAutomatic,
             });
           }
         } catch (err) {
@@ -166,10 +175,15 @@ export default function OpenBets() {
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">🏰</span>
-                      <p className="text-xs font-mono text-purple-300">
-                        {bet.address.slice(0, 8)}...{bet.address.slice(-8)}
-                      </p>
+                      <span className="text-2xl">{bet.isAutomatic ? "⚡" : "👑"}</span>
+                      <div>
+                        <p className="text-xs font-mono text-purple-300">
+                          {bet.address.slice(0, 8)}...{bet.address.slice(-8)}
+                        </p>
+                        <span className={`text-[10px] pixel-font ${bet.isAutomatic ? 'text-cyan-400' : 'text-yellow-400'}`}>
+                          {bet.isAutomatic ? 'AUTO' : 'ARBITER'}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -201,7 +215,9 @@ export default function OpenBets() {
                       <p className="text-white pixel-font text-sm">{bet.playerCount}<span className="text-purple-300">/100</span></p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2 border border-green-500/20">
-                      <p className="text-green-300 mb-1 pixel-font text-[10px]">⏰ LOCK</p>
+                      <p className="text-green-300 mb-1 pixel-font text-[10px]">
+                        {bet.isAutomatic ? "⚡ AUTO" : "⏰ LOCK"}
+                      </p>
                       <p className="text-white pixel-font text-sm">
                         {new Date(bet.lockTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
