@@ -281,58 +281,199 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
   const playerCount = poolData ? poolData.playerCount : activePool.playerCount;
 
   return (
-    <div className="space-y-6">
-      {/* Dungeon Header */}
-      <div className="bg-gradient-to-br from-[#0f0f1e] to-[#1a1a2e] border-4 border-purple-500/30 rounded-2xl p-8 text-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-5"></div>
-        <div className="relative z-10">
-          <div className="text-5xl mb-3">{isAutomatic ? "⚡" : "👑"}</div>
-          <h2 className="text-3xl pixel-font text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2"
-              style={{ textShadow: "3px 3px 0px #000" }}>
-            {isAutomatic ? "AUTOMATIC DUNGEON" : "ARBITER DUNGEON"}
-          </h2>
-          <p className="text-sm pixel-font text-cyan-300">
-            {isAutomatic ? "⚡ Winner reveals automatically" : "👑 Arbiter reveals the winner"}
-          </p>
-          <div className="mt-4 text-xs pixel-font text-purple-300 font-mono">
-            {activePool.address.slice(0, 12)}...{activePool.address.slice(-12)}
+    <div className="space-y-8">
+      {/* Dungeon Banner - Irregular stone plaque */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative"
+      >
+        {/* Outer glow */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-purple-600/30 via-cyan-600/30 to-purple-600/30 rounded-[2.5rem] blur-2xl" />
+
+        <div className="relative bg-gradient-to-br from-[#0a0a15] via-[#15152a] to-[#0a0a15] rounded-[2.5rem] p-10 overflow-hidden border-2 border-purple-500/40 shadow-[inset_0_2px_20px_rgba(0,0,0,0.8),0_0_40px_rgba(168,85,247,0.15)]">
+          {/* Animated stone texture */}
+          <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-[0.08] mix-blend-overlay" />
+
+          {/* Vignette */}
+          <div className="absolute inset-0 bg-radial-gradient from-transparent via-transparent to-black/40" />
+
+          {/* Floating particles */}
+          <div className="absolute inset-0 overflow-hidden">
+            {[...Array(8)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="absolute w-1 h-1 bg-cyan-400/30 rounded-full"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                }}
+                animate={{
+                  y: [0, -30, 0],
+                  opacity: [0, 0.6, 0],
+                }}
+                transition={{
+                  duration: 3 + Math.random() * 2,
+                  repeat: Infinity,
+                  delay: Math.random() * 2,
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="relative z-10 text-center">
+            <motion.div
+              className="inline-block text-7xl mb-4"
+              animate={{
+                rotate: [0, -5, 5, 0],
+                scale: [1, 1.05, 1],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              {isAutomatic ? "⚡" : "👑"}
+            </motion.div>
+
+            <motion.h2
+              className="text-4xl md:text-5xl pixel-font mb-3"
+              style={{
+                background: "linear-gradient(135deg, #a78bfa 0%, #06b6d4 50%, #a78bfa 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                filter: "drop-shadow(0 0 20px rgba(167, 139, 250, 0.5))",
+              }}
+              animate={{
+                filter: [
+                  "drop-shadow(0 0 20px rgba(167, 139, 250, 0.5))",
+                  "drop-shadow(0 0 30px rgba(6, 182, 212, 0.6))",
+                  "drop-shadow(0 0 20px rgba(167, 139, 250, 0.5))",
+                ]
+              }}
+              transition={{ duration: 3, repeat: Infinity }}
+            >
+              {isAutomatic ? "AUTOMATIC DUNGEON" : "ARBITER DUNGEON"}
+            </motion.h2>
+
+            <p className="text-sm pixel-font text-cyan-300/80 mb-6">
+              {isAutomatic ? "⚡ Winner reveals automatically" : "👑 Arbiter reveals the winner"}
+            </p>
+
+            <div className="inline-flex items-center gap-2 px-5 py-2 bg-black/40 rounded-full border border-purple-500/30 backdrop-blur-sm">
+              <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+              <span className="text-xs pixel-font text-purple-300/70 font-mono">
+                {activePool.address.slice(0, 8)}...{activePool.address.slice(-8)}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Pool Stats */}
-      <div className="bg-gradient-to-br from-purple-900/20 to-cyan-900/20 border-2 border-purple-500/30 rounded-2xl p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatBox icon="💰" label="POOL" value={`${poolTotal.toFixed(3)} SOL`} />
-          <StatBox icon="👥" label="PLAYERS" value={`${playerCount}/100`} />
-          <StatBox icon="🎫" label="MIN ENTRY" value={`${minDeposit.toFixed(3)} SOL`} />
-          <StatBox icon={status === "open" ? "🟢" : status === "revealed" ? "🏆" : "🔴"} label="STATUS" value={status.toUpperCase()} />
+      {/* RPG Stats Badges - Floating pills instead of grid */}
+      <div className="relative">
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <StatPill icon="💰" label="POOL" value={`${poolTotal.toFixed(3)} SOL`} accent="purple" />
+          <StatPill icon="👥" label="PLAYERS" value={`${playerCount}/100`} accent="cyan" />
+          <StatPill icon="🎫" label="ENTRY" value={`${minDeposit.toFixed(3)} SOL`} accent="purple" />
+          <StatPill
+            icon={status === "open" ? "🟢" : status === "revealed" ? "🏆" : "🔴"}
+            label="STATUS"
+            value={status.toUpperCase()}
+            accent={status === "open" ? "green" : status === "revealed" ? "yellow" : "red"}
+          />
         </div>
       </div>
 
-      {/* Compact Dungeon Grid */}
-      <div className="bg-gradient-to-b from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e] rounded-2xl border-4 border-purple-500/30 p-4 md:p-6">
-        <div className="text-center mb-4">
-          <h3 className="text-xl md:text-2xl pixel-font text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-            {isRevealing ? "⚔️ REVEALING ⚔️" : "🗝️ CHOOSE DOOR 🗝️"}
-          </h3>
-        </div>
+      {/* Dungeon Floor - Organic door grid */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.2 }}
+        className="relative"
+      >
+        {/* Outer atmospheric glow */}
+        <div className="absolute -inset-4 bg-gradient-to-b from-purple-900/20 via-cyan-900/20 to-purple-900/20 rounded-[3rem] blur-3xl" />
 
-        {/* Compact Grid 5x5 */}
-        <div className="grid grid-cols-5 gap-1.5 md:gap-2 max-w-md mx-auto">
-          {Array.from({ length: TOTAL_BLOCKS }, (_, i) => i + 1).map((blockNum) => (
-            <div key={blockNum} className="aspect-square">
-              <PixelDoor
-                blockNumber={blockNum}
-                state={doorStates[blockNum] || "idle"}
-                isWinner={blockNum === winnerBlock}
-                trapType={trapTypes[blockNum]}
-                onSelect={() => !hasJoined && !isRevealing && setSelectedBlock(blockNum)}
-                disabled={hasJoined || isRevealing}
-              />
+        {/* Main dungeon floor container */}
+        <div className="relative bg-gradient-to-b from-[#08080f] via-[#0f0f1a] to-[#08080f] rounded-[2rem] p-8 md:p-10 overflow-hidden border-2 border-purple-500/30 shadow-[inset_0_4px_30px_rgba(0,0,0,0.9),0_0_50px_rgba(139,92,246,0.1)]">
+          {/* Dungeon stone floor texture */}
+          <div className="absolute inset-0">
+            <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-[0.06]" />
+            <div className="absolute inset-0 bg-gradient-radial from-transparent via-purple-900/5 to-black/30" />
+          </div>
+
+          {/* Animated torch light effect */}
+          <motion.div
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-gradient-radial from-orange-500/10 via-yellow-500/5 to-transparent rounded-full blur-3xl"
+            animate={{
+              opacity: [0.3, 0.5, 0.3],
+              scale: [1, 1.1, 1],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+
+          <div className="relative z-10">
+            {/* Title with breathing animation */}
+            <motion.div
+              className="text-center mb-8"
+              animate={{
+                y: [0, -4, 0],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              <h3
+                className="text-2xl md:text-3xl pixel-font mb-1"
+                style={{
+                  background: "linear-gradient(135deg, #a78bfa 0%, #06b6d4 50%, #a78bfa 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  filter: "drop-shadow(0 0 15px rgba(167, 139, 250, 0.4))",
+                }}
+              >
+                {isRevealing ? "⚔️ REVEALING ⚔️" : "🗝️ CHOOSE YOUR DOOR 🗝️"}
+              </h3>
+              <p className="text-xs pixel-font text-purple-300/60">
+                {isRevealing ? "The treasure is being revealed..." : "Pick wisely, adventurer"}
+              </p>
+            </motion.div>
+
+            {/* Door Grid with organic spacing */}
+            <div className="grid grid-cols-5 gap-3 md:gap-4 max-w-2xl mx-auto">
+              {Array.from({ length: TOTAL_BLOCKS }, (_, i) => i + 1).map((blockNum) => (
+                <motion.div
+                  key={blockNum}
+                  className="aspect-square"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    delay: blockNum * 0.02,
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 20
+                  }}
+                  whileHover={{ scale: hasJoined || isRevealing ? 1 : 1.05, y: -2 }}
+                >
+                  <PixelDoor
+                    blockNumber={blockNum}
+                    state={doorStates[blockNum] || "idle"}
+                    isWinner={blockNum === winnerBlock}
+                    trapType={trapTypes[blockNum]}
+                    onSelect={() => !hasJoined && !isRevealing && setSelectedBlock(blockNum)}
+                    disabled={hasJoined || isRevealing}
+                  />
+                </motion.div>
+              ))}
             </div>
-          ))}
-        </div>
 
         {/* Player's Choice */}
         {myChosenBlock && !isRevealing && (
@@ -349,10 +490,9 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
             </div>
           </motion.div>
         )}
-      </div>
 
-      {/* Actions */}
-      {!hasJoined && status === "open" && (
+            {/* Actions */}
+            {!hasJoined && status === "open" && (
         <div className="space-y-3">
           <div>
             <label className="block text-sm pixel-font text-purple-300 mb-2">
@@ -377,6 +517,9 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
           </button>
         </div>
       )}
+          </div>
+        </div>
+      </motion.div>
 
       {/* Victory Modal */}
       <VictoryModal
@@ -387,6 +530,93 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
         winningBlock={winnerBlock || 0}
       />
     </div>
+  );
+}
+
+// RPG-style stat pill component
+function StatPill({
+  icon,
+  label,
+  value,
+  accent = "purple",
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  accent?: "purple" | "cyan" | "green" | "yellow" | "red";
+}) {
+  const accentColors = {
+    purple: {
+      bg: "from-purple-600/20 to-purple-900/20",
+      border: "border-purple-500/40",
+      glow: "shadow-purple-500/20",
+      text: "text-purple-300",
+    },
+    cyan: {
+      bg: "from-cyan-600/20 to-cyan-900/20",
+      border: "border-cyan-500/40",
+      glow: "shadow-cyan-500/20",
+      text: "text-cyan-300",
+    },
+    green: {
+      bg: "from-green-600/20 to-green-900/20",
+      border: "border-green-500/40",
+      glow: "shadow-green-500/20",
+      text: "text-green-300",
+    },
+    yellow: {
+      bg: "from-yellow-600/20 to-yellow-900/20",
+      border: "border-yellow-500/40",
+      glow: "shadow-yellow-500/20",
+      text: "text-yellow-300",
+    },
+    red: {
+      bg: "from-red-600/20 to-red-900/20",
+      border: "border-red-500/40",
+      glow: "shadow-red-500/20",
+      text: "text-red-300",
+    },
+  };
+
+  const colors = accentColors[accent];
+
+  return (
+    <motion.div
+      className="relative group"
+      whileHover={{ scale: 1.05, y: -2 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+    >
+      {/* Glow effect on hover */}
+      <div className={`absolute -inset-0.5 bg-gradient-to-r ${colors.bg} rounded-full blur opacity-0 group-hover:opacity-100 transition duration-300`} />
+
+      <div
+        className={`relative flex items-center gap-3 px-5 py-3 bg-gradient-to-br ${colors.bg} rounded-full border ${colors.border} backdrop-blur-sm shadow-lg ${colors.glow}`}
+      >
+        {/* Floating icon */}
+        <motion.div
+          className="text-2xl"
+          animate={{
+            y: [0, -2, 0],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        >
+          {icon}
+        </motion.div>
+
+        <div className="text-left">
+          <p className={`text-[9px] pixel-font ${colors.text} opacity-70 leading-none mb-1`}>
+            {label}
+          </p>
+          <p className="text-sm pixel-font text-white font-bold leading-none whitespace-nowrap">
+            {value}
+          </p>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
