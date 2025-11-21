@@ -172,7 +172,7 @@ export function useBlockBattle() {
 
     try {
       const program = await getProgram(connection, wallet);
-      const betAccount = await program.account.betAccount.fetch(betPDA);
+      const betAccount = await (program.account as any).betAccount.fetch(betPDA);
       return betAccount;
     } catch (error: any) {
       console.error("Error fetching bet data:", error);
