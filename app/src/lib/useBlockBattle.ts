@@ -241,15 +241,28 @@ export function useBlockBattle() {
   };
 
   const getBetData = async (betPDA: PublicKey) => {
-    if (!wallet) return null;
+    if (!wallet) {
+      console.warn("⚠️ No wallet connected for getBetData");
+      throw new Error("Wallet not connected");
+    }
 
     try {
+      console.log("📡 Fetching bet data for:", betPDA.toBase58());
       const program = await getProgram(connection, wallet);
-      const betAccount = await (program.account as any).betAccount.fetch(betPDA);
+
+      // Add timeout to prevent hanging
+      const fetchPromise = (program.account as any).betAccount.fetch(betPDA);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Fetch timeout after 10s")), 10000)
+      );
+
+      const betAccount = await Promise.race([fetchPromise, timeoutPromise]);
+      console.log("✅ Bet data fetched successfully");
       return betAccount;
     } catch (error: any) {
-      console.error("Error fetching bet data:", error);
-      return null;
+      console.error("❌ Error fetching bet data:", error.message || error);
+      // Re-throw the error instead of returning null
+      throw new Error(error.message || "Failed to fetch bet data");
     }
   };
 

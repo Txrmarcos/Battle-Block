@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { PROGRAM_ID, getProgram } from "@/lib/anchor";
-import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { PROGRAM_ID } from "@/lib/anchor";
 
 interface OpenBet {
   address: string;
@@ -19,7 +18,6 @@ const MAX_RESULTS = 50; // Limitar resultados
 
 export function useBetsList() {
   const { connection } = useConnection();
-  const wallet = useAnchorWallet();
   const [bets, setBets] = useState<OpenBet[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,16 +39,10 @@ export function useBetsList() {
       }
     }
 
-    if (!wallet) {
-      console.log("⚠️ Wallet não conectada");
-      return [];
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      const program = await getProgram(connection, wallet);
 
       // Calcular offset para o campo status (Open = 0)
       // discriminator(8) + creator(32) + arbiter(32) + min_deposit(8) +
@@ -60,7 +52,7 @@ export function useBetsList() {
       console.log("🔍 Buscando apostas abertas com filtros otimizados...");
       const startTime = Date.now();
 
-      // Usar filtros efetivos: memcmp para status = 0 (Open)
+      // Buscar todas as contas abertas (status = 0)
       const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
         filters: [
           {
@@ -70,11 +62,6 @@ export function useBetsList() {
             },
           },
         ],
-        // Limitar dados retornados
-        dataSlice: {
-          offset: 0,
-          length: 200, // Apenas os primeiros 200 bytes (suficiente para metadata básica)
-        },
       });
 
       console.log(`✅ Encontradas ${accounts.length} contas em ${Date.now() - startTime}ms`);
@@ -83,25 +70,55 @@ export function useBetsList() {
       const limitedAccounts = accounts.slice(0, MAX_RESULTS);
       const openBets: OpenBet[] = [];
 
-      // Buscar dados completos apenas para contas limitadas usando Anchor
+      // Parse bytes diretamente - SEM chamadas RPC extras!
       for (const account of limitedAccounts) {
         try {
-          // Usar o deserializer do Anchor (muito mais rápido!)
-          const betData = await (program.account as any).betAccount.fetch(
-            account.pubkey
-          );
+          const data = account.account.data;
 
-          // Verificar se ainda está aberta
-          const status = Object.keys(betData.status)[0];
-          if (status === "open") {
+          // Parse estrutura:
+          // discriminator(8) + creator(32) + arbiter(32) + min_deposit(8) +
+          // total_pool(8) + lock_time(8) + winner_block(Option<u8>) +
+          // status(1) + player_count(1) + bump(1) + is_automatic(1)
+
+          let offset = 8; // Skip discriminator
+
+          const creatorBytes = data.slice(offset, offset + 32);
+          const creator = new PublicKey(creatorBytes).toBase58();
+          offset += 32 + 32; // Skip creator + arbiter
+
+          const minDeposit = Number(data.readBigUInt64LE(offset));
+          offset += 8;
+
+          const totalPool = Number(data.readBigUInt64LE(offset));
+          offset += 8;
+
+          const lockTime = Number(data.readBigInt64LE(offset));
+          offset += 8;
+
+          // winner_block: Option<u8>
+          const hasWinnerBlock = data.readUInt8(offset);
+          offset += hasWinnerBlock === 1 ? 2 : 1;
+
+          const status = data.readUInt8(offset);
+          offset += 1;
+
+          const playerCount = data.readUInt8(offset);
+          offset += 1;
+
+          offset += 1; // Skip bump
+
+          const isAutomatic = data.readUInt8(offset) === 1;
+
+          // Só adicionar se status for Open (0)
+          if (status === 0) {
             openBets.push({
               address: account.pubkey.toBase58(),
-              creator: betData.creator.toBase58(),
-              minDeposit: betData.minDeposit.toNumber() / 1e9,
-              totalPool: betData.totalPool.toNumber() / 1e9,
-              playerCount: betData.playerCount,
-              lockTime: betData.lockTime.toNumber(),
-              isAutomatic: betData.isAutomatic,
+              creator,
+              minDeposit: minDeposit / 1e9,
+              totalPool: totalPool / 1e9,
+              playerCount,
+              lockTime,
+              isAutomatic,
             });
           }
         } catch (err) {
@@ -129,7 +146,7 @@ export function useBetsList() {
     } finally {
       setLoading(false);
     }
-  }, [connection, wallet]);
+  }, [connection]);
 
   const invalidateCache = useCallback(() => {
     cacheRef.current = null;

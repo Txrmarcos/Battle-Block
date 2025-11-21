@@ -58,20 +58,18 @@ export default function ManageBet() {
       console.log(`📦 Found ${accounts.length} pools created by you`);
 
       const pools: PoolInfo[] = [];
-      const currentTime = Math.floor(Date.now() / 1000);
 
       for (const account of accounts) {
         try {
           const data = account.account.data;
-          let offset = 8;
 
-          // Skip creator
-          offset += 32;
-          // Skip arbiter
-          offset += 32;
+          // Parse bytes directly - NO extra RPC calls!
+          // Account structure (from Rust):
+          // discriminator(8) + creator(32) + arbiter(32) + min_deposit(8) +
+          // total_pool(8) + lock_time(8) + winner_block(Option<u8>) +
+          // status(1) + player_count(1) + bump(1) + is_automatic(1) + ...
 
-          // Skip min_deposit
-          offset += 8;
+          let offset = 8 + 32 + 32 + 8; // Skip to total_pool
 
           const totalPool = Number(data.readBigUInt64LE(offset));
           offset += 8;
@@ -79,11 +77,11 @@ export default function ManageBet() {
           const lockTime = Number(data.readBigInt64LE(offset));
           offset += 8;
 
-          // winner_block is Option<u8>
+          // winner_block: Option<u8>
           const hasWinnerBlock = data.readUInt8(offset);
           offset += 1;
           let winnerBlock: number | undefined;
-          if (hasWinnerBlock) {
+          if (hasWinnerBlock === 1) {
             winnerBlock = data.readUInt8(offset);
             offset += 1;
           }
@@ -104,7 +102,7 @@ export default function ManageBet() {
             winnerBlock,
           });
         } catch (err) {
-          console.error("Error parsing pool:", err);
+          console.error("Error parsing pool:", account.pubkey.toBase58(), err);
         }
       }
 
@@ -133,93 +131,112 @@ export default function ManageBet() {
     setSearchingPools(true);
 
     try {
-      // Get all bet accounts with player data filter
-      const accounts = await connection.getProgramAccounts(PROGRAM_ID);
+      // Get all bet accounts - use smaller dataSlice
+      const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        dataSlice: {
+          offset: 0,
+          length: 120, // Just get metadata, not player arrays
+        },
+      });
+
       console.log(`📦 Found ${accounts.length} total pools`);
 
       const joined: PoolInfo[] = [];
 
-      // Limit processing to avoid browser freeze
-      const MAX_ACCOUNTS = 50;
-      const accountsToProcess = accounts.slice(0, MAX_ACCOUNTS);
+      // Limit drastically to avoid freeze
+      const MAX_ACCOUNTS = 20;
+      const accountsToCheck = accounts.slice(0, MAX_ACCOUNTS);
 
-      for (const account of accountsToProcess) {
-        try {
-          const data = account.account.data;
-          let offset = 8;
+      // Process in small batches to avoid blocking
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < accountsToCheck.length; i += BATCH_SIZE) {
+        const batch = accountsToCheck.slice(i, i + BATCH_SIZE);
 
-          // Skip creator
-          offset += 32;
-          // Skip arbiter
-          offset += 32;
+        // Give browser time to breathe
+        await new Promise(resolve => setTimeout(resolve, 0));
 
-          const minDeposit = Number(data.readBigUInt64LE(offset));
-          offset += 8;
+        for (const account of batch) {
+          try {
+            // Fetch full account data only for accounts we're checking
+            const fullAccount = await connection.getAccountInfo(account.pubkey);
+            if (!fullAccount) continue;
 
-          const totalPool = Number(data.readBigUInt64LE(offset));
-          offset += 8;
+            const data = fullAccount.data;
 
-          const lockTime = Number(data.readBigInt64LE(offset));
-          offset += 8;
+            // Parse bytes directly
+            let offset = 8 + 32 + 32 + 8; // Skip to total_pool
 
-          // winner_block is Option<u8>
-          const hasWinnerBlock = data.readUInt8(offset);
-          offset += 1;
-          let winnerBlock: number | undefined;
-          if (hasWinnerBlock) {
-            winnerBlock = data.readUInt8(offset);
+            const totalPool = Number(data.readBigUInt64LE(offset));
+            offset += 8;
+
+            const lockTime = Number(data.readBigInt64LE(offset));
+            offset += 8;
+
+            // winner_block: Option<u8>
+            const hasWinnerBlock = data.readUInt8(offset);
             offset += 1;
-          }
-
-          const status = data.readUInt8(offset);
-          offset += 1;
-
-          const playerCount = data.readUInt8(offset);
-          offset += 1;
-
-          if (playerCount === 0) continue;
-
-          // Read players array
-          const players: string[] = [];
-          for (let i = 0; i < playerCount && i < 25; i++) {
-            const playerPubkey = new PublicKey(data.slice(offset, offset + 32));
-            players.push(playerPubkey.toBase58());
-            offset += 32;
-          }
-
-          // Check if user is in players array
-          const playerIndex = players.findIndex(p => p === publicKey.toBase58());
-
-          if (playerIndex !== -1) {
-            // Read chosen blocks
-            offset = 8 + 32 + 32 + 8 + 8 + 8 + (hasWinnerBlock ? 2 : 1) + 1 + 1 + (32 * 25);
-            const chosenBlocks: number[] = [];
-            for (let i = 0; i < 25; i++) {
-              chosenBlocks.push(data.readUInt8(offset));
+            let winnerBlock: number | undefined;
+            if (hasWinnerBlock === 1) {
+              winnerBlock = data.readUInt8(offset);
               offset += 1;
             }
 
-            const myBlock = chosenBlocks[playerIndex];
-            const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
+            const status = data.readUInt8(offset);
+            offset += 1;
 
-            joined.push({
-              address: account.pubkey.toBase58(),
-              totalPool: totalPool / 1e9,
-              playerCount,
-              status: statusStr,
-              lockTime: Number(lockTime),
-              winnerBlock,
-              myChosenBlock: myBlock,
-            });
+            const playerCount = data.readUInt8(offset);
+            offset += 1;
 
-            console.log(`✅ Found pool ${account.pubkey.toBase58().slice(0, 8)}... - You chose block ${myBlock}`);
+            // Skip bump(1) + is_automatic(1)
+            offset += 2;
+
+            if (playerCount === 0) continue;
+
+            // Read players Vec
+            const playersVecLen = data.readUInt32LE(offset);
+            offset += 4;
+
+            let playerIndex = -1;
+            const myPubkeyStr = publicKey.toBase58();
+
+            // Check if user is in this pool
+            for (let j = 0; j < Math.min(playersVecLen, 100); j++) {
+              const playerPubkey = new PublicKey(data.subarray(offset, offset + 32));
+              if (playerPubkey.toBase58() === myPubkeyStr) {
+                playerIndex = j;
+                break;
+              }
+              offset += 32;
+            }
+
+            if (playerIndex !== -1) {
+              // Skip remaining players if we found ours
+              offset = 8 + 32 + 32 + 8 + 8 + 8 + (hasWinnerBlock ? 2 : 1) + 1 + 1 + 1 + 1 + 4 + (32 * playersVecLen) + 4;
+
+              // Read chosen_blocks Vec
+              const block = data.readUInt8(offset + playerIndex);
+
+              const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
+
+              joined.push({
+                address: account.pubkey.toBase58(),
+                totalPool: totalPool / 1e9,
+                playerCount,
+                status: statusStr,
+                lockTime,
+                winnerBlock,
+                myChosenBlock: block,
+              });
+
+              console.log(`✅ Found pool - You chose block ${block}`);
+            }
+          } catch (err) {
+            // Silently skip errored pools
           }
-        } catch (err) {
-          console.error("Error parsing joined pool:", err);
         }
       }
 
-      // Sort: revealed first (so user can see if they won), then by pool size
+      // Sort: revealed first, then by pool size
       joined.sort((a, b) => {
         if (a.status === 'revealed' && b.status !== 'revealed') return -1;
         if (a.status !== 'revealed' && b.status === 'revealed') return 1;
@@ -244,25 +261,47 @@ export default function ManageBet() {
     }
 
     console.log("🔍 Loading pool details for:", address);
+    setLoading(true);
+
+    // Safety timeout to force loading to false after 20 seconds
+    const safetyTimeout = setTimeout(() => {
+      console.error("🚨 SAFETY TIMEOUT: Forcing loading to false after 20s");
+      setLoading(false);
+      toast.error("Request timed out. Please try again.");
+    }, 20000);
+
     try {
-      setLoading(true);
       const betPDA = new PublicKey(address);
-      const data = await getBetData(betPDA);
+
+      // Create timeout wrapper
+      const timeoutMs = 15000; // 15 seconds max
+      const fetchWithTimeout = Promise.race([
+        getBetData(betPDA),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout after ${timeoutMs/1000}s`)), timeoutMs)
+        )
+      ]) as Promise<any>;
+
+      const data = await fetchWithTimeout;
 
       if (!data) {
-        throw new Error("Pool data not found");
+        throw new Error("Pool data not found or fetch failed");
       }
 
-      console.log("✅ Pool details loaded:", data);
+      console.log("✅ Pool details loaded successfully");
       setPoolDetails(data);
       setSelectedPool(address);
-    } catch (error) {
-      console.error("❌ Error loading pool details:", error);
-      toast.error("Failed to load pool details");
+      clearTimeout(safetyTimeout);
+    } catch (error: any) {
+      console.error("❌ Error loading pool details:", error.message || error);
+      toast.error(`Failed to load pool: ${error.message || "Unknown error"}`);
       setSelectedPool(null);
       setPoolDetails(null);
+      clearTimeout(safetyTimeout);
     } finally {
+      clearTimeout(safetyTimeout);
       setLoading(false);
+      console.log("✅ Loading state reset");
     }
   };
 
@@ -310,13 +349,15 @@ export default function ManageBet() {
     isLoadingRef.current = true;
     setSearchingPools(true);
     try {
-      await Promise.all([findMyPools(), findJoinedPools()]);
+      // Only load "My Pools" for now - joined pools is too heavy
+      await findMyPools();
+      // TODO: Optimize joined pools search or make it on-demand
       hasLoadedRef.current = true;
     } finally {
       setSearchingPools(false);
       isLoadingRef.current = false;
     }
-  }, [findMyPools, findJoinedPools]);
+  }, [findMyPools]);
 
   const manualRefresh = useCallback(async () => {
     console.log("🔄 Manual refresh triggered");
@@ -356,7 +397,17 @@ export default function ManageBet() {
   const isArbiter = poolDetails && publicKey && poolDetails.arbiter.toBase58() === publicKey.toBase58();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center">
+          <div className="bg-gradient-to-br from-purple-900/90 to-cyan-900/90 border-4 border-purple-500 rounded-2xl p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-purple-500 mb-4"></div>
+            <p className="pixel-font text-purple-300 text-lg">Loading dungeon data...</p>
+            <p className="pixel-font text-cyan-300 text-xs mt-2">This may take a few seconds</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-br from-[#0f0f1e] to-[#1a1a2e] border-4 border-purple-500/30 rounded-2xl p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-5"></div>
@@ -409,7 +460,8 @@ export default function ManageBet() {
                 <button
                   key={pool.address}
                   onClick={() => loadPoolDetails(pool.address)}
-                  className={`p-5 rounded-xl border-2 transition-all text-left relative overflow-hidden group ${
+                  disabled={loading}
+                  className={`p-5 rounded-xl border-2 transition-all text-left relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedPool === pool.address
                       ? "bg-gradient-to-br from-purple-500/30 to-cyan-500/30 border-cyan-500 shadow-lg shadow-cyan-500/50"
                       : "bg-gradient-to-br from-purple-900/20 to-cyan-900/20 border-purple-500/30 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/30"
@@ -462,7 +514,7 @@ export default function ManageBet() {
         </div>
       </div>
 
-      {/* Joined Pools Grid */}
+      {/* Joined Pools Grid - DISABLED FOR PERFORMANCE */}
       <div className="bg-gradient-to-br from-[#0f0f1e] to-[#1a1a2e] border-4 border-cyan-500/30 rounded-2xl p-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-5"></div>
         <div className="relative z-10">
@@ -471,7 +523,7 @@ export default function ManageBet() {
             <h3 className="text-xl pixel-font text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">YOUR QUESTS</h3>
           </div>
 
-          {searchingPools ? (
+          {false && searchingPools ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-4 border-cyan-500 mb-4"></div>
               <p className="pixel-font text-cyan-300">Loading your quests...</p>
@@ -479,8 +531,8 @@ export default function ManageBet() {
           ) : joinedPools.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-5xl mb-4">🗺️</div>
-              <p className="pixel-font text-cyan-300 mb-2">NO QUESTS JOINED</p>
-              <p className="text-sm pixel-font text-purple-300">Browse dungeons in the 🗺️ tab!</p>
+              <p className="pixel-font text-cyan-300 mb-2">QUEST TRACKING DISABLED</p>
+              <p className="text-sm pixel-font text-purple-300">Check 🗺️ Browse tab to see all pools</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
