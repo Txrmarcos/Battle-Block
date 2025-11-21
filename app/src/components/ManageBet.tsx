@@ -7,6 +7,7 @@ import { useBlockBattle } from "@/lib/useBlockBattle";
 import { PROGRAM_ID } from "@/lib/anchor";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { getExplorerAddressUrl } from "@/lib/explorer";
 
 const TOTAL_BLOCKS = 25;
 
@@ -506,11 +507,21 @@ export default function ManageBet() {
                         )}
                       </div>
 
-                      {/* Address */}
-                      <div className="pt-3 border-t border-purple-500/20">
+                      {/* Address and Explorer Link */}
+                      <div className="pt-3 border-t border-purple-500/20 flex items-center justify-between gap-2">
                         <p className="text-[9px] text-purple-400/70 font-mono truncate">
                           {pool.address.slice(0, 8)}...{pool.address.slice(-8)}
                         </p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(getExplorerAddressUrl(pool.address), "_blank");
+                          }}
+                          className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 text-cyan-300 rounded text-[8px] pixel-font transition-all"
+                          title="View on Explorer"
+                        >
+                          🔍
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -746,11 +757,21 @@ export default function ManageBet() {
                           )
                         )}
 
-                        {/* Address */}
-                        <div className="mt-4 pt-3 border-t border-cyan-500/20">
-                          <p className="text-[9px] text-cyan-400/70 font-mono truncate text-center">
+                        {/* Address and Explorer Link */}
+                        <div className="mt-4 pt-3 border-t border-cyan-500/20 flex items-center justify-between gap-2">
+                          <p className="text-[9px] text-cyan-400/70 font-mono truncate">
                             {pool.address.slice(0, 8)}...{pool.address.slice(-8)}
                           </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(getExplorerAddressUrl(pool.address), "_blank");
+                            }}
+                            className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 text-cyan-300 rounded text-[8px] pixel-font transition-all"
+                            title="View on Explorer"
+                          >
+                            🔍
+                          </button>
                         </div>
                       </div>
                     </div>

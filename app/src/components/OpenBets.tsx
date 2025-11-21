@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { useBetsList } from "@/hooks/useBetsList";
+import { getExplorerAddressUrl } from "@/lib/explorer";
 
 export default function OpenBets() {
   const { bets, loading, error, loadOpenBets, invalidateCache } = useBetsList();
@@ -200,6 +201,15 @@ export default function OpenBets() {
 
                       {/* Action buttons */}
                       <div className="flex gap-2">
+                        <motion.button
+                          onClick={() => window.open(getExplorerAddressUrl(bet.address), "_blank")}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="px-4 py-2 bg-black/50 hover:bg-black/70 border border-cyan-500/40 hover:border-cyan-500 text-cyan-300 hover:text-white pixel-font text-[10px] rounded-xl transition-all shadow-lg"
+                          title="View on Solana Explorer"
+                        >
+                          🔍
+                        </motion.button>
                         <motion.button
                           onClick={() => copyShareLink(bet.address)}
                           whileHover={{ scale: 1.05, y: -2 }}

@@ -10,6 +10,7 @@ import PixelDoor, { DoorState, TrapType } from "./pixel-dungeon/PixelDoor";
 import VictoryModal from "./pixel-dungeon/VictoryModal";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { getExplorerAddressUrl } from "@/lib/explorer";
 
 const TOTAL_BLOCKS = 25;
 const TRAP_TYPES: TrapType[] = ["arrow", "poison", "skeleton", "slime", "spikes", "curse"];
@@ -369,11 +370,22 @@ export default function QuickPlayPixel({ betAddress }: QuickPlayProps) {
               {isAutomatic ? "⚡ Winner reveals automatically" : "👑 Arbiter reveals the winner"}
             </p>
 
-            <div className="inline-flex items-center gap-2 px-5 py-2 bg-black/40 rounded-full border border-purple-500/30 backdrop-blur-sm">
-              <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-              <span className="text-xs pixel-font text-purple-300/70 font-mono">
-                {activePool.address.slice(0, 8)}...{activePool.address.slice(-8)}
-              </span>
+            <div className="inline-flex items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-5 py-2 bg-black/40 rounded-full border border-purple-500/30 backdrop-blur-sm">
+                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                <span className="text-xs pixel-font text-purple-300/70 font-mono">
+                  {activePool.address.slice(0, 8)}...{activePool.address.slice(-8)}
+                </span>
+              </div>
+              <motion.button
+                onClick={() => window.open(getExplorerAddressUrl(activePool.address), "_blank")}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-3 py-2 bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-300 rounded-full text-xs pixel-font transition-all"
+                title="View on Solana Explorer"
+              >
+                🔍 EXPLORER
+              </motion.button>
             </div>
           </div>
         </div>

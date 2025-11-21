@@ -3,6 +3,7 @@ import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { getProgram, getBetPDA } from "./anchor";
 import { BN } from "@coral-xyz/anchor";
 import toast from "react-hot-toast";
+import { getExplorerUrl } from "./explorer";
 
 export function useBlockBattle() {
   const { connection } = useConnection();
@@ -38,8 +39,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success("Bet created successfully!");
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success("Bet created successfully! Click 🔍 to view on Explorer", {
+        duration: 5000,
+      });
+
       console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       console.log("Bet PDA:", betPDA.toBase58());
       console.log("Seed:", seed.toString());
       return { tx, betPDA, seed };
@@ -82,7 +89,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success(`Joined bet with block ${chosenBlock}!`);
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success(`Joined bet with block ${chosenBlock}! Click 🔍 to view on Explorer`, {
+        duration: 5000,
+      });
+
+      console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       return tx;
     } catch (error: any) {
       console.error("Error joining bet:", error);
@@ -111,7 +125,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success(`Winner revealed: Block ${winningBlock}!`);
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success(`Winner revealed: Block ${winningBlock}! Click 🔍 to view on Explorer`, {
+        duration: 5000,
+      });
+
+      console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       return tx;
     } catch (error: any) {
       console.error("Error revealing winner:", error);
@@ -137,7 +158,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success("Winner auto-revealed!");
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success("Winner auto-revealed! Click 🔍 to view on Explorer", {
+        duration: 5000,
+      });
+
+      console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       return tx;
     } catch (error: any) {
       console.error("Error auto-revealing winner:", error);
@@ -163,7 +191,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success("Winnings claimed successfully!");
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success("Winnings claimed successfully! Click 🔍 to view on Explorer", {
+        duration: 5000,
+      });
+
+      console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       return tx;
     } catch (error: any) {
       console.error("Error claiming winnings:", error);
@@ -189,7 +224,14 @@ export function useBlockBattle() {
         })
         .rpc();
 
-      toast.success("Bet cancelled successfully!");
+      const explorerUrl = getExplorerUrl(tx);
+
+      toast.success("Bet cancelled successfully! Click 🔍 to view on Explorer", {
+        duration: 5000,
+      });
+
+      console.log("Transaction signature:", tx);
+      console.log("Explorer URL:", explorerUrl);
       return tx;
     } catch (error: any) {
       console.error("Error cancelling bet:", error);
