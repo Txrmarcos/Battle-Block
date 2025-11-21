@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useBlockBattle } from "@/lib/useBlockBattle";
@@ -32,7 +32,9 @@ export default function ManageBet() {
   const [selectedPool, setSelectedPool] = useState<string | null>(null);
   const [poolDetails, setPoolDetails] = useState<any>(null);
   const [winningBlock, setWinningBlock] = useState<number | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+  const isLoadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   // Find all pools created by the connected user
   const findMyPools = useCallback(async () => {
@@ -235,7 +237,7 @@ export default function ManageBet() {
   }, [publicKey, connection]);
 
   // Load detailed data for selected pool
-  const loadPoolDetails = useCallback(async (address: string) => {
+  const loadPoolDetails = async (address: string) => {
     if (loading || searchingPools) {
       console.log("⏸️ Skipping loadPoolDetails - already loading");
       return;
@@ -262,7 +264,7 @@ export default function ManageBet() {
     } finally {
       setLoading(false);
     }
-  }, [getBetData, loading, searchingPools]);
+  };
 
   const handleReveal = async () => {
     if (!selectedPool || winningBlock === null) return;
@@ -299,23 +301,31 @@ export default function ManageBet() {
   };
 
   const refreshAll = useCallback(async () => {
+    if (isLoadingRef.current) {
+      console.log("⏸️ Already loading, skipping refresh");
+      return;
+    }
+
     console.log("🔄 Refreshing all pools...");
+    isLoadingRef.current = true;
     setSearchingPools(true);
     try {
       await Promise.all([findMyPools(), findJoinedPools()]);
-      setHasLoadedOnce(true);
+      hasLoadedRef.current = true;
     } finally {
       setSearchingPools(false);
+      isLoadingRef.current = false;
     }
   }, [findMyPools, findJoinedPools]);
 
   const manualRefresh = useCallback(async () => {
     console.log("🔄 Manual refresh triggered");
+    hasLoadedRef.current = false; // Allow manual refresh
     await refreshAll();
   }, [refreshAll]);
 
   useEffect(() => {
-    if (connected && publicKey && !hasLoadedOnce) {
+    if (connected && publicKey && !hasLoadedRef.current && !isLoadingRef.current) {
       console.log("🚀 Initial load of pools");
       refreshAll();
     } else if (!connected || !publicKey) {
@@ -324,9 +334,10 @@ export default function ManageBet() {
       setJoinedPools([]);
       setSelectedPool(null);
       setPoolDetails(null);
-      setHasLoadedOnce(false);
+      hasLoadedRef.current = false;
+      isLoadingRef.current = false;
     }
-  }, [connected, publicKey, hasLoadedOnce, refreshAll]);
+  }, [connected, publicKey, refreshAll]);
 
   if (!connected) {
     return (
