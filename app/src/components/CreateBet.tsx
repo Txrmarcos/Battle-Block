@@ -25,7 +25,8 @@ export default function CreateBet() {
       const result = await createBet(
         parseFloat(formData.minDeposit),
         arbiterPubkey,
-        parseInt(formData.lockTime)
+        parseInt(formData.lockTime),
+        false // isAutomatic
       );
 
       if (result) {
