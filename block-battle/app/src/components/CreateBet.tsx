@@ -4,42 +4,17 @@ import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useBlockBattle } from "@/lib/useBlockBattle";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { getBetPDA } from "@/lib/anchor";
-import { useBetManager } from "@/hooks/useBetManager";
 import toast from "react-hot-toast";
 
 export default function CreateBet() {
   const { connected, publicKey } = useWallet();
-  const { createBet, cancelBet } = useBlockBattle();
-  const { saveBet, clearBet, activeBet } = useBetManager();
+  const { createBet } = useBlockBattle();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     minDeposit: "0.1",
     arbiter: "",
     lockTime: "300", // 5 minutes in seconds
   });
-
-  const handleCancelPrevious = async () => {
-    if (!publicKey) return;
-
-    setLoading(true);
-    try {
-      const [betPDA] = getBetPDA(publicKey);
-      await cancelBet(betPDA);
-      clearBet(); // Clear from localStorage
-      toast.success("Previous bet cancelled! You can now create a new one.");
-    } catch (error: any) {
-      console.error("Error cancelling bet:", error);
-      if (error.message?.includes("Account does not exist")) {
-        clearBet(); // Also clear if account doesn't exist
-        toast.error("No previous bet found to cancel");
-      } else {
-        toast.error(error.message || "Failed to cancel bet");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,8 +29,6 @@ export default function CreateBet() {
       );
 
       if (result) {
-        await saveBet(result.betPDA); // Refresh from blockchain and cache
-
         // Generate shareable URL
         const shareUrl = `${window.location.origin}?bet=${result.betPDA.toBase58()}`;
 
@@ -73,9 +46,7 @@ export default function CreateBet() {
       }
     } catch (error: any) {
       console.error(error);
-      if (error.message?.includes("already in use")) {
-        toast.error("You already have an active bet! Cancel it first using the button below.");
-      }
+      toast.error(error.message || "Failed to create pool");
     } finally {
       setLoading(false);
     }
@@ -174,28 +145,13 @@ export default function CreateBet() {
         >
           {loading ? "Creating..." : "Create Pool"}
         </button>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-white/[0.06]"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-3 bg-[#050509] text-[#71717A]">or</span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleCancelPrevious}
-          disabled={loading}
-          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] text-white font-medium py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Cancelling..." : "Cancel Previous Pool"}
-        </button>
-        <p className="text-xs text-[#71717A] text-center">
-          Cancel your existing pool to create a new one
-        </p>
       </form>
+
+      <div className="mt-6 p-4 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+        <p className="text-sm text-[#A1A1AA] text-center">
+          You can create multiple pools. Manage them in the <span className="text-purple-400 font-medium">"Manage"</span> tab.
+        </p>
+      </div>
     </div>
   );
 }

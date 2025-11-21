@@ -4,36 +4,30 @@ import { useState, useEffect } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useBlockBattle } from "@/lib/useBlockBattle";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useBetManager } from "@/hooks/useBetManager";
 
 const TOTAL_BLOCKS = 25;
 
 export default function JoinBet() {
   const { connected } = useWallet();
   const { joinBet, getBetData } = useBlockBattle();
-  const { activeBet, betData: activeBetData } = useBetManager();
   const [loading, setLoading] = useState(false);
   const [betAddress, setBetAddress] = useState("");
   const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
   const [depositAmount, setDepositAmount] = useState("0.1");
   const [betData, setBetData] = useState<any>(null);
 
-  // Auto-load from URL parameter (shared link) or active bet
+  // Auto-load from URL parameter (shared link)
   useEffect(() => {
     // Check URL for shared bet
     const urlParams = new URLSearchParams(window.location.search);
     const betParam = urlParams.get('bet');
 
     if (betParam && !betAddress) {
-      // Shared link takes priority
+      // Shared link
       setBetAddress(betParam);
       handleLoadBet();
-    } else if (activeBet && !betAddress) {
-      // Fallback to user's own bet
-      setBetAddress(activeBet.address);
-      setBetData(activeBetData);
     }
-  }, [activeBet, activeBetData]);
+  }, []);
 
   // Handle loading bet when address changes from URL
   useEffect(() => {
@@ -98,11 +92,6 @@ export default function JoinBet() {
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
             Bet Address
-            {activeBet && (
-              <span className="ml-2 text-xs text-green-400">
-                ✓ Auto-loaded from your active bet
-              </span>
-            )}
           </label>
           <div className="flex gap-2">
             <input

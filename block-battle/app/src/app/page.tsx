@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import CreateBet from "@/components/CreateBet";
@@ -10,7 +10,7 @@ import QuickPlay from "@/components/QuickPlay";
 
 type Tab = "play" | "browse" | "create" | "manage";
 
-export default function Home() {
+function HomeContent() {
   const [activeTab, setActiveTab] = useState<Tab>("play");
   const searchParams = useSearchParams();
   const betParam = searchParams.get("bet");
@@ -152,5 +152,13 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#050509]" />}>
+      <HomeContent />
+    </Suspense>
   );
 }
