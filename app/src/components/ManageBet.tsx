@@ -18,6 +18,8 @@ interface PoolInfo {
   lockTime: number;
   winnerBlock?: number;
   myChosenBlock?: number;
+  alreadyClaimed?: boolean;
+  myDeposit?: number; // How much the user invested
 }
 
 export default function ManageBet() {
@@ -231,11 +233,36 @@ export default function ManageBet() {
             }
 
             if (playerIndex !== -1) {
-              // Skip remaining players if we found ours
+              // Calculate offset to chosen_blocks Vec
               offset = 8 + 32 + 32 + 8 + 8 + 8 + (hasWinnerBlock ? 2 : 1) + 1 + 1 + 1 + 1 + 4 + (32 * playersVecLen) + 4;
 
               // Read chosen_blocks Vec
               const block = data.readUInt8(offset + playerIndex);
+
+              // Move to deposits Vec (after chosen_blocks)
+              offset += playersVecLen; // skip chosen_blocks
+              offset += 4; // skip deposits Vec length (u32)
+
+              // Read my deposit (u64 = 8 bytes)
+              let myDeposit = 0;
+              try {
+                myDeposit = Number(data.readBigUInt64LE(offset + (playerIndex * 8))) / 1e9;
+              } catch (err) {
+                myDeposit = 0;
+              }
+
+              // Move to claimed Vec (after deposits)
+              offset += playersVecLen * 8; // skip all deposits (each is 8 bytes)
+              offset += 4; // skip claimed Vec length (u32)
+
+              // Read if this player already claimed
+              let alreadyClaimed = false;
+              try {
+                alreadyClaimed = data.readUInt8(offset + playerIndex) === 1;
+              } catch (err) {
+                // If can't read, assume not claimed
+                alreadyClaimed = false;
+              }
 
               const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
 
@@ -247,9 +274,11 @@ export default function ManageBet() {
                 lockTime,
                 winnerBlock,
                 myChosenBlock: block,
+                myDeposit,
+                alreadyClaimed,
               });
 
-              console.log(`✅ Found pool - You chose block ${block}`);
+              console.log(`✅ Found pool - Block ${block}, Invested: ${myDeposit} SOL, Claimed: ${alreadyClaimed}`);
             }
             } catch (err) {
               // Silently skip errored pools
@@ -578,6 +607,51 @@ export default function ManageBet() {
               <p className="text-sm pixel-font text-purple-300">Click 🔍 SEARCH above to find your participated dungeons</p>
             </div>
           ) : (
+            <>
+              {/* Summary Stats */}
+              {(() => {
+                const totalInvested = joinedPools.reduce((sum, p) => sum + (p.myDeposit || 0), 0);
+                const totalWon = joinedPools
+                  .filter(p => p.status === 'revealed' && p.winnerBlock === p.myChosenBlock && p.alreadyClaimed)
+                  .reduce((sum, p) => sum + p.totalPool, 0);
+                const netProfit = totalWon - totalInvested;
+                const wins = joinedPools.filter(p => p.status === 'revealed' && p.winnerBlock === p.myChosenBlock).length;
+                const losses = joinedPools.filter(p => p.status === 'revealed' && p.winnerBlock !== p.myChosenBlock).length;
+
+                return (
+                  <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/30 rounded-xl p-4 border-2 border-blue-500/30">
+                      <p className="text-[10px] pixel-font text-blue-300 mb-1">💎 TOTAL INVESTED</p>
+                      <p className="text-white pixel-font text-lg">{totalInvested.toFixed(4)} SOL</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-900/30 to-emerald-800/30 rounded-xl p-4 border-2 border-green-500/30">
+                      <p className="text-[10px] pixel-font text-green-300 mb-1">💰 TOTAL WON</p>
+                      <p className="text-white pixel-font text-lg">{totalWon.toFixed(4)} SOL</p>
+                    </div>
+                    <div className={`bg-gradient-to-br rounded-xl p-4 border-2 ${
+                      netProfit >= 0
+                        ? 'from-yellow-900/30 to-orange-800/30 border-yellow-500/30'
+                        : 'from-red-900/30 to-red-800/30 border-red-500/30'
+                    }`}>
+                      <p className="text-[10px] pixel-font mb-1" style={{ color: netProfit >= 0 ? '#fcd34d' : '#f87171' }}>
+                        {netProfit >= 0 ? '📈 NET PROFIT' : '📉 NET LOSS'}
+                      </p>
+                      <p className={`pixel-font text-lg ${netProfit >= 0 ? 'text-yellow-300' : 'text-red-300'}`}>
+                        {netProfit >= 0 ? '+' : ''}{netProfit.toFixed(4)} SOL
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-900/30 to-purple-800/30 rounded-xl p-4 border-2 border-purple-500/30">
+                      <p className="text-[10px] pixel-font text-purple-300 mb-1">🎯 WIN RATE</p>
+                      <p className="text-white pixel-font text-lg">
+                        {wins}/{wins + losses}
+                        {wins + losses > 0 && <span className="text-sm ml-1">({((wins / (wins + losses)) * 100).toFixed(0)}%)</span>}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Pool Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {joinedPools.map((pool) => {
                 const didWin = pool.status === 'revealed' && pool.winnerBlock === pool.myChosenBlock;
@@ -609,11 +683,30 @@ export default function ManageBet() {
                       </div>
 
                       <div className="space-y-3">
-                        <div className="bg-black/30 rounded-lg p-3 border border-yellow-500/20">
-                          <p className="text-xs pixel-font text-yellow-300 mb-1">💰 PRIZE POOL</p>
-                          <p className="text-white pixel-font text-lg">
-                            {pool.totalPool.toFixed(4)} SOL
-                          </p>
+                        {/* Investment & Winnings Row */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-black/30 rounded-lg p-3 border border-blue-500/30">
+                            <p className="text-xs pixel-font text-blue-300 mb-1">💎 INVESTED</p>
+                            <p className="text-white pixel-font text-lg">
+                              {pool.myDeposit?.toFixed(4) || '0.0000'} SOL
+                            </p>
+                          </div>
+                          {didWin && (
+                            <div className="bg-black/30 rounded-lg p-3 border border-yellow-500/30">
+                              <p className="text-xs pixel-font text-yellow-300 mb-1">💰 WINNINGS</p>
+                              <p className="text-white pixel-font text-lg">
+                                {pool.totalPool.toFixed(4)} SOL
+                              </p>
+                            </div>
+                          )}
+                          {!didWin && (
+                            <div className="bg-black/30 rounded-lg p-3 border border-red-500/20">
+                              <p className="text-xs pixel-font text-red-400 mb-1">😢 LOST</p>
+                              <p className="text-red-300 pixel-font text-lg">
+                                -{pool.myDeposit?.toFixed(4) || '0.0000'} SOL
+                              </p>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center justify-between gap-2">
@@ -642,17 +735,26 @@ export default function ManageBet() {
                         </div>
                       </div>
 
-                      {didWin && (
+                      {didWin && !pool.alreadyClaimed && (
                         <button
                           onClick={async () => {
                             try {
                               setLoading(true);
                               const betPDA = new PublicKey(pool.address);
                               await claimWinnings(betPDA);
-                              await findJoinedPools();
+
+                              // Remove this pool from the list after successful claim
+                              setJoinedPools(prev => prev.filter(p => p.address !== pool.address));
+
                               toast.success("Treasure claimed! 🎉");
-                            } catch (error) {
+                            } catch (error: any) {
                               console.error(error);
+                              // Check if error is because already claimed
+                              if (error?.message?.includes("already") || error?.message?.includes("claimed")) {
+                                toast.error("Already claimed!");
+                                // Remove from list anyway
+                                setJoinedPools(prev => prev.filter(p => p.address !== pool.address));
+                              }
                             } finally {
                               setLoading(false);
                             }
@@ -662,6 +764,18 @@ export default function ManageBet() {
                         >
                           {loading ? "CLAIMING..." : "💰 CLAIM TREASURE 💰"}
                         </button>
+                      )}
+
+                      {didWin && pool.alreadyClaimed && (
+                        <div className="w-full mt-4 bg-gradient-to-r from-green-900/50 to-emerald-900/50 text-green-300 pixel-font rounded-xl p-4 text-center border-2 border-green-500/50">
+                          <p className="text-sm mb-2">✅ TREASURE CLAIMED</p>
+                          <p className="text-xs text-green-400">
+                            You won <span className="font-bold text-yellow-300">{pool.totalPool.toFixed(4)} SOL</span>!
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Profit: +{(pool.totalPool - (pool.myDeposit || 0)).toFixed(4)} SOL
+                          </p>
+                        </div>
                       )}
 
                       <div className="mt-3 pt-3 border-t border-cyan-500/30">
@@ -674,6 +788,7 @@ export default function ManageBet() {
                 );
               })}
             </div>
+            </>
           )}
         </div>
       </div>
