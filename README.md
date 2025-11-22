@@ -22,7 +22,6 @@ A decentralized betting protocol on Solana that enables trustless wagering betwe
 - [Testing](#-testing)
 - [Security](#-security)
 - [Bounty Requirements](#-bounty-requirements)
-- [Team](#-team)
 - [License](#-license)
 
 ## 🎯 Overview
@@ -429,8 +428,6 @@ npm run test
 
 - [PITCH_DECK.pptx](PITCH_DECK.pptx) - Complete pitch deck for corporate presentations (40+ slides)
 - [PIXEL_DUNGEON_FLOW.md](PIXEL_DUNGEON_FLOW.md) - Complete game flow with step-by-step walkthrough
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Data architecture and design decisions
-- [PAYOUT_EXAMPLES.md](PAYOUT_EXAMPLES.md) - Proportional payout system examples
 - [Frontend README](app/README.md) - Detailed frontend documentation
 - [Anchor Docs](https://www.anchor-lang.com/) - Anchor framework documentation
 - [Solana Docs](https://docs.solana.com/) - Solana blockchain documentation
