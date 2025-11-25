@@ -8,6 +8,37 @@
   },
   "instructions": [
     {
+      "name": "auto_reveal_winner",
+      "docs": [
+        "Auto-reveal winner for automatic bets (anyone can call after lock time)",
+        "If no one picked the winning block, all players can claim refunds"
+      ],
+      "discriminator": [
+        2,
+        26,
+        36,
+        59,
+        32,
+        57,
+        202,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "bet",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "docs": [
+            "Anyone can trigger auto-reveal after lock time"
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "cancel_bet",
       "docs": [
         "Cancel bet if conditions not met (optional - Extra 3)"
@@ -183,7 +214,8 @@
     {
       "name": "reveal_winner",
       "docs": [
-        "Arbiter reveals the winning block (only for non-automatic bets)"
+        "Arbiter reveals the winning block (only for non-automatic bets)",
+        "If no one picked the winning block, all players can claim refunds"
       ],
       "discriminator": [
         234,
@@ -211,33 +243,6 @@
           "type": "u8"
         }
       ]
-    },
-    {
-      "name": "auto_reveal_winner",
-      "docs": [
-        "Auto-reveal winner for automatic bets (anyone can call after lock time)"
-      ],
-      "discriminator": [
-        104,
-        175,
-        215,
-        55,
-        12,
-        87,
-        202,
-        58
-      ],
-      "accounts": [
-        {
-          "name": "bet",
-          "writable": true
-        },
-        {
-          "name": "caller",
-          "signer": true
-        }
-      ],
-      "args": []
     }
   ],
   "accounts": [

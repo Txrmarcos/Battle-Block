@@ -92,6 +92,7 @@ pub mod block_battle {
     }
 
     /// Arbiter reveals the winning block (only for non-automatic bets)
+    /// If no one picked the winning block, all players can claim refunds
     pub fn reveal_winner(
         ctx: Context<RevealWinner>,
         winning_block: u8,
@@ -103,13 +104,14 @@ pub mod block_battle {
         require!(!bet.is_automatic, BetError::AutomaticBetCannotManualReveal);
         require!(bet.arbiter == arbiter.key(), BetError::UnauthorizedArbiter);
         require!(winning_block > 0 && winning_block <= TOTAL_BLOCKS, BetError::InvalidBlock);
-        // Arbiter can reveal at any time, no lock_time check needed
+        // Arbiter can only reveal after lock_time has passed
+        require!(Clock::get()?.unix_timestamp >= bet.lock_time, BetError::BetNotLocked);
         require!(bet.player_count >= 2, BetError::NotEnoughPlayers);
 
         bet.winner_block = Some(winning_block);
         bet.status = BetStatus::Revealed;
 
-        // Calculate winners
+        // Calculate winners (for logging purposes)
         let mut winner_count = 0;
         let mut total_winner_deposits = 0u64;
 
@@ -120,16 +122,20 @@ pub mod block_battle {
             }
         }
 
-        require!(winner_count > 0, BetError::NoWinners);
-
+        // No longer require winners - if no one picked the block, all get refunds via claim_winnings
         msg!("Winning block revealed: {}", winning_block);
-        msg!("Winners: {}", winner_count);
-        msg!("Total winner deposits: {} lamports", total_winner_deposits);
+        if winner_count > 0 {
+            msg!("Winners: {}", winner_count);
+            msg!("Total winner deposits: {} lamports", total_winner_deposits);
+        } else {
+            msg!("No winners! All players can claim refunds.");
+        }
 
         Ok(())
     }
 
     /// Auto-reveal winner for automatic bets (anyone can call after lock time)
+    /// If no one picked the winning block, all players can claim refunds
     pub fn auto_reveal_winner(ctx: Context<AutoRevealWinner>) -> Result<()> {
         let bet = &mut ctx.accounts.bet;
         let clock = Clock::get()?;
@@ -152,7 +158,7 @@ pub mod block_battle {
         bet.winner_block = Some(winning_block);
         bet.status = BetStatus::Revealed;
 
-        // Calculate winners
+        // Calculate winners (for logging purposes)
         let mut winner_count = 0;
         let mut total_winner_deposits = 0u64;
 
@@ -163,12 +169,14 @@ pub mod block_battle {
             }
         }
 
-        // If no winners, allow another reveal attempt
-        require!(winner_count > 0, BetError::NoWinners);
-
+        // No longer require winners - if no one picked the block, all get refunds via claim_winnings
         msg!("Auto-revealed winning block: {}", winning_block);
-        msg!("Winners: {}", winner_count);
-        msg!("Total winner deposits: {} lamports", total_winner_deposits);
+        if winner_count > 0 {
+            msg!("Winners: {}", winner_count);
+            msg!("Total winner deposits: {} lamports", total_winner_deposits);
+        } else {
+            msg!("No winners! All players can claim refunds.");
+        }
 
         Ok(())
     }
