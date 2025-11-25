@@ -35,11 +35,10 @@ export default function CreateBet() {
         ? PublicKey.default // System program as placeholder
         : new PublicKey(formData.arbiter);
 
-      // For arbiter mode, locktime is not used, so we use current time + 1 year as dummy
-      // For automatic mode, use the configured locktime
-      const lockTimeSeconds = isAutomatic
-        ? parseInt(formData.lockTime)
-        : 31536000; // 1 year (not used for arbiter mode)
+      // Both modes use the configured locktime
+      // For arbiter mode: arbiter can only reveal AFTER locktime passes
+      // For automatic mode: auto-reveal happens after locktime
+      const lockTimeSeconds = parseInt(formData.lockTime);
 
       const result = await createBet(
         parseFloat(formData.minDeposit),
@@ -309,30 +308,88 @@ export default function CreateBet() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
+              className="space-y-6"
             >
-              <label className="block text-sm pixel-font text-yellow-300/80 mb-3">
-                👑 ARBITER ADDRESS
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formData.arbiter}
-                  onChange={(e) => setFormData({ ...formData, arbiter: e.target.value })}
-                  className="w-full px-5 py-4 bg-black/60 border-2 border-yellow-500/40  text-white placeholder-yellow-300/30 focus:outline-none focus:border-yellow-500/60 focus:shadow-[0_0_20px_rgba(234,179,8,0.2)] transition-all font-mono text-sm shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]"
-                  style={{clipPath: 'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))'}}
-                  placeholder="Judge's public key..."
-                  required
-                />
+              <div>
+                <label className="block text-sm pixel-font text-yellow-300/80 mb-3">
+                  👑 ARBITER ADDRESS
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.arbiter}
+                    onChange={(e) => setFormData({ ...formData, arbiter: e.target.value })}
+                    className="w-full px-5 py-4 bg-black/60 border-2 border-yellow-500/40 text-white placeholder-yellow-300/30 focus:outline-none focus:border-yellow-500/60 focus:shadow-[0_0_20px_rgba(234,179,8,0.2)] transition-all font-mono text-sm shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]"
+                    style={{clipPath: 'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))'}}
+                    placeholder="Judge's public key..."
+                    required
+                  />
+                </div>
               </div>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-xs pixel-font text-yellow-400/70 mt-3 flex items-center gap-2"
-              >
-                <span className="text-base">⚡</span>
-                Arbiter reveals the treasure at any time
-              </motion.p>
+
+              <div>
+                <label className="block text-sm pixel-font text-yellow-300/80 mb-4">
+                  ⏰ LOCK TIME (Arbiter can reveal after this)
+                </label>
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label: "1MIN", value: "60", icon: "⚡" },
+                    { label: "5MIN", value: "300", icon: "⏱️" },
+                    { label: "15MIN", value: "900", icon: "⏳" },
+                    { label: "1HR", value: "3600", icon: "🕐" },
+                  ].map((preset) => (
+                    <motion.button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, lockTime: preset.value })}
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={`relative px-3 py-3 pixel-font text-xs transition-all border-2 overflow-hidden ${
+                        formData.lockTime === preset.value
+                          ? "border-yellow-500/60 shadow-[0_0_20px_rgba(234,179,8,0.4)]"
+                          : "border-gray-800/30 hover:border-yellow-500/50"
+                      }`}
+                      style={{clipPath: 'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))'}}
+                    >
+                      {formData.lockTime === preset.value && (
+                        <motion.div
+                          layoutId="arbiterTimePreset"
+                          className="absolute inset-0 bg-gradient-to-br from-yellow-900/40 via-orange-950/40 to-gray-900/40"
+                          transition={{ type: "spring", bounce: 0.15, duration: 0.4 }}
+                        />
+                      )}
+                      <div className="absolute inset-0 bg-black/50" />
+                      <div className="relative z-10">
+                        <div className="text-lg mb-1">{preset.icon}</div>
+                        <div className={`font-bold ${formData.lockTime === preset.value ? 'text-white' : 'text-gray-500/70'}`}>
+                          {preset.label}
+                        </div>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="60"
+                    value={formData.lockTime}
+                    onChange={(e) => setFormData({ ...formData, lockTime: e.target.value })}
+                    className="w-full px-5 py-4 bg-black/60 border-2 border-yellow-500/40 text-white placeholder-yellow-300/30 focus:outline-none focus:border-yellow-500/60 focus:shadow-[0_0_20px_rgba(234,179,8,0.2)] transition-all pixel-font shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]"
+                    style={{clipPath: 'polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px))'}}
+                    placeholder="Custom time in seconds..."
+                    required
+                  />
+                </div>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-xs pixel-font text-yellow-400/70 mt-3 flex items-center gap-2"
+                >
+                  <span className="text-base">👑</span>
+                  Arbiter can reveal winner after lock time expires
+                </motion.p>
+              </div>
             </motion.div>
           )}
 
@@ -506,7 +563,7 @@ export default function CreateBet() {
                     className="text-xs pixel-font text-yellow-400/90 text-center flex items-center justify-center gap-2"
                   >
                     <span className="text-sm">👑</span>
-                    Arbiter reveals winner at any time • No time limit
+                    Arbiter reveals winner after lock time expires
                   </motion.p>
                 )}
               </AnimatePresence>
