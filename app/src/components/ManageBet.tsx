@@ -23,6 +23,7 @@ interface PoolInfo {
   alreadyClaimed?: boolean;
   myDeposit?: number; // How much the user invested
   claimTxHash?: string; // Transaction hash of the claim
+  isAutomatic?: boolean; // true = automatic mode, false = arbiter mode
 }
 
 export default function ManageBet() {
@@ -114,6 +115,13 @@ export default function ManageBet() {
           offset += 1;
 
           const playerCount = data.readUInt8(offset);
+          offset += 1;
+
+          // bump(1)
+          offset += 1;
+
+          // is_automatic(1)
+          const isAutomatic = data.readUInt8(offset) === 1;
 
           const statusStr = status === 0 ? 'open' : status === 1 ? 'revealed' : 'cancelled';
 
@@ -124,6 +132,7 @@ export default function ManageBet() {
             status: statusStr,
             lockTime,
             winnerBlock,
+            isAutomatic,
           });
         } catch (err) {
           console.error("Error parsing pool:", account.pubkey.toBase58(), err);
@@ -214,8 +223,12 @@ export default function ManageBet() {
             const playerCount = data.readUInt8(offset);
             offset += 1;
 
-            // Skip bump(1) + is_automatic(1)
-            offset += 2;
+            // bump(1)
+            offset += 1;
+
+            // is_automatic(1)
+            const isAutomatic = data.readUInt8(offset) === 1;
+            offset += 1;
 
             if (playerCount === 0) continue;
 
@@ -280,6 +293,7 @@ export default function ManageBet() {
                 myChosenBlock: block,
                 myDeposit,
                 alreadyClaimed,
+                isAutomatic,
               });
 
               console.log(`✅ Found pool - Block ${block}, Invested: ${myDeposit} SOL, Claimed: ${alreadyClaimed}`);
@@ -552,13 +566,22 @@ export default function ManageBet() {
                   <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
                   <div className="relative z-10">
                     <div className="flex items-start justify-between mb-3">
-                      <span className={`px-3 py-1  pixel-font text-[10px] border-2 ${
-                        pool.status === 'open' ? 'bg-gray-800/20 text-gray-400 border-gray-800/50' :
-                        pool.status === 'revealed' ? 'bg-yellow-950/20 text-yellow-700 border-yellow-900/50' :
-                        'bg-red-500/20 text-red-400 border-red-500/50'
-                      }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
-                        {pool.status.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 pixel-font text-[10px] border-2 ${
+                          pool.status === 'open' ? 'bg-gray-800/20 text-gray-400 border-gray-800/50' :
+                          pool.status === 'revealed' ? 'bg-yellow-950/20 text-yellow-700 border-yellow-900/50' :
+                          'bg-red-500/20 text-red-400 border-red-500/50'
+                        }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                          {pool.status.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-1 pixel-font text-[10px] border ${
+                          pool.isAutomatic
+                            ? 'bg-gray-800/20 text-gray-400 border-gray-700/50'
+                            : 'bg-yellow-950/20 text-yellow-500 border-yellow-700/50'
+                        }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                          {pool.isAutomatic ? '⚡ AUTO' : '👑 ARBITER'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -570,15 +593,42 @@ export default function ManageBet() {
                       </div>
 
                       <div className="flex items-center justify-between gap-2">
-                        <div className="bg-black/30  p-2 border border-gray-800/20 flex-1" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                        <div className="bg-black/30 p-2 border border-gray-800/20 flex-1" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
                           <p className="text-[10px] pixel-font text-gray-500">👥 PLAYERS</p>
                           <p className="text-white pixel-font text-sm">{pool.playerCount}</p>
                         </div>
                         {pool.winnerBlock && (
-                          <div className="bg-black/30  p-2 border border-yellow-900/20 flex-1" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                          <div className="bg-black/30 p-2 border border-yellow-900/20 flex-1" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
                             <p className="text-[10px] pixel-font text-yellow-700">🏆 WINNER</p>
                             <p className="text-white pixel-font text-sm">#{pool.winnerBlock}</p>
                           </div>
+                        )}
+                      </div>
+
+                      {/* Lock Time / Arbiter Info */}
+                      <div className={`bg-black/30 p-2 border ${pool.isAutomatic ? 'border-green-800/30' : 'border-yellow-700/30'}`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                        {pool.isAutomatic ? (
+                          <>
+                            <p className="text-[10px] pixel-font text-green-500">⏰ AUTO-REVEAL</p>
+                            <p className="text-white pixel-font text-xs">
+                              {pool.status === 'open' ? (
+                                Date.now() / 1000 > pool.lockTime ? (
+                                  <span className="text-green-400">Ready to reveal!</span>
+                                ) : (
+                                  new Date(pool.lockTime * 1000).toLocaleString()
+                                )
+                              ) : (
+                                'Revealed'
+                              )}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-[10px] pixel-font text-yellow-500">👑 ARBITER MODE</p>
+                            <p className="text-white pixel-font text-xs">
+                              {pool.status === 'open' ? 'Waiting for arbiter' : 'Revealed by arbiter'}
+                            </p>
+                          </>
                         )}
                       </div>
                     </div>
@@ -687,15 +737,24 @@ export default function ManageBet() {
                     <div className="absolute inset-0 bg-[url('/stone-texture.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
                     <div className="relative z-10">
                       <div className="flex items-start justify-between mb-3">
-                        <span className={`px-3 py-1  pixel-font text-[10px] border-2 ${
-                          pool.status === 'open' ? 'bg-gray-800/20 text-gray-400 border-gray-800/50' :
-                          pool.status === 'revealed' ? 'bg-yellow-950/20 text-yellow-700 border-yellow-900/50' :
-                          'bg-red-500/20 text-red-400 border-red-500/50'
-                        }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
-                          {pool.status.toUpperCase()}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-3 py-1 pixel-font text-[10px] border-2 ${
+                            pool.status === 'open' ? 'bg-gray-800/20 text-gray-400 border-gray-800/50' :
+                            pool.status === 'revealed' ? 'bg-yellow-950/20 text-yellow-700 border-yellow-900/50' :
+                            'bg-red-500/20 text-red-400 border-red-500/50'
+                          }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                            {pool.status.toUpperCase()}
+                          </span>
+                          <span className={`px-2 py-1 pixel-font text-[10px] border ${
+                            pool.isAutomatic
+                              ? 'bg-gray-800/20 text-gray-400 border-gray-700/50'
+                              : 'bg-yellow-950/20 text-yellow-500 border-yellow-700/50'
+                          }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                            {pool.isAutomatic ? '⚡ AUTO' : '👑 ARBITER'}
+                          </span>
+                        </div>
                         {didWin && (
-                          <span className="px-3 py-1  pixel-font text-[10px] bg-yellow-500/30 text-yellow-300 border-2 border-yellow-500 shadow-lg animate-pulse" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                          <span className="px-3 py-1 pixel-font text-[10px] bg-yellow-500/30 text-yellow-300 border-2 border-yellow-500 shadow-lg animate-pulse" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
                             🏆 VICTORY
                           </span>
                         )}
@@ -749,9 +808,28 @@ export default function ManageBet() {
                           )}
                         </div>
 
-                        <div className="bg-black/30  p-2 border border-gray-800/20" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                        <div className="bg-black/30 p-2 border border-gray-800/20" style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
                           <p className="text-[10px] pixel-font text-gray-500">👥 ADVENTURERS: <span className="text-white">{pool.playerCount}</span></p>
                         </div>
+
+                        {/* Lock Time / Arbiter Info for joined pools */}
+                        {pool.status === 'open' && (
+                          <div className={`bg-black/30 p-2 border ${pool.isAutomatic ? 'border-green-800/30' : 'border-yellow-700/30'}`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
+                            {pool.isAutomatic ? (
+                              <p className="text-[10px] pixel-font text-green-500">
+                                ⏰ AUTO-REVEAL: {Date.now() / 1000 > pool.lockTime ? (
+                                  <span className="text-green-400">Ready!</span>
+                                ) : (
+                                  <span className="text-white">{new Date(pool.lockTime * 1000).toLocaleString()}</span>
+                                )}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] pixel-font text-yellow-500">
+                                👑 ARBITER MODE: <span className="text-white">Waiting for arbiter to reveal</span>
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {didWin && !pool.alreadyClaimed && (
@@ -913,6 +991,43 @@ export default function ManageBet() {
                   }`} style={{clipPath: 'polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px)'}}>
                     {status?.toUpperCase()}
                   </span>
+                </div>
+              </div>
+
+              {/* Mode and Lock Time Info */}
+              <div className={`mt-4 p-4 border-2 ${poolDetails.isAutomatic ? 'bg-gray-900/30 border-gray-700/50' : 'bg-yellow-950/30 border-yellow-700/50'}`} style={{clipPath: 'polygon(0 8px, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px))'}}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{poolDetails.isAutomatic ? '⚡' : '👑'}</span>
+                    <div>
+                      <p className={`pixel-font text-sm font-bold ${poolDetails.isAutomatic ? 'text-gray-300' : 'text-yellow-400'}`}>
+                        {poolDetails.isAutomatic ? 'AUTOMATIC MODE' : 'ARBITER MODE'}
+                      </p>
+                      <p className="text-[10px] pixel-font text-gray-500">
+                        {poolDetails.isAutomatic ? 'Winner revealed automatically after timer' : 'Arbiter reveals the winner manually'}
+                      </p>
+                    </div>
+                  </div>
+                  {poolDetails.isAutomatic && status === 'open' && (
+                    <div className="text-right">
+                      <p className="text-[10px] pixel-font text-gray-500">⏰ REVEAL TIME</p>
+                      {Date.now() / 1000 > poolDetails.lockTime.toNumber() ? (
+                        <p className="pixel-font text-sm text-green-400">Ready to reveal!</p>
+                      ) : (
+                        <p className="pixel-font text-sm text-white">
+                          {new Date(poolDetails.lockTime.toNumber() * 1000).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {!poolDetails.isAutomatic && status === 'open' && (
+                    <div className="text-right">
+                      <p className="text-[10px] pixel-font text-yellow-500">👑 ARBITER</p>
+                      <p className="pixel-font text-[10px] text-white font-mono">
+                        {poolDetails.arbiter.toBase58().slice(0, 8)}...
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
